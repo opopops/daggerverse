@@ -21,19 +21,18 @@ class Grype:
 
     def container(self) -> dagger.Container:
         """Returns grype container"""
-        container: dagger.Container = None
+        container: dagger.Container = dag.container()
         cache_dir: str = "/tmp/.grype/cache"
 
         if self.registry_username is not None and self.registry_password is not None:
-            container = dag.container().with_registry_auth(
-                address=self.address,
+            container = container.with_registry_auth(
+                address=self.image,
                 username=self.registry_username,
                 secret=self.registry_password,
             )
-        else:
-            container = dag.container().from_(address=self.image)
         return (
-            container.with_user(self.user)
+            container.from_(address=self.image)
+            .with_user(self.user)
             .with_env_variable("GRYPE_DB_CACHE_DIR", cache_dir)
             .with_mounted_cache(
                 cache_dir,

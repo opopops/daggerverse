@@ -21,17 +21,14 @@ class Cosign:
 
     def container(self) -> dagger.Container:
         """Returns Cosign container"""
-        container: dagger.Container = None
-
+        container: dagger.Container = dag.container()
         if self.registry_username is not None and self.registry_password is not None:
-            container = dag.container().with_registry_auth(
-                address=self.address,
+            container = container.with_registry_auth(
+                address=self.image,
                 username=self.registry_username,
                 secret=self.registry_password,
             )
-        else:
-            container = dag.container().from_(address=self.image)
-        return container.with_user(self.user)
+        return container.from_(address=self.image).with_user(self.user)
 
     @function
     async def sign(
@@ -46,6 +43,8 @@ class Cosign:
             ),
         ]
         | None = False,
+        docker_config: Annotated[dagger.Directory, Doc("Docker config directory")]
+        | None = None,
         registry_username: Annotated[str, Doc("Registry username")] | None = None,
         registry_password: (
             Annotated[dagger.Secret, Doc("Registry password")] | None
@@ -53,14 +52,10 @@ class Cosign:
     ) -> str:
         """Sign image with Cosign"""
 
-        cmd = [
-            "sign",
-            digest,
-            "--key",
-            "env://COSIGN_PRIVATE_KEY",
-            "--recursive",
-            str(recursive).lower(),
-        ]
+        cmd = ["sign", digest, "--key", "env://COSIGN_PRIVATE_KEY"]
+
+        if recursive:
+            cmd.append("--recursive")
 
         if registry_username and registry_password:
             cmd.extend(
@@ -72,9 +67,15 @@ class Cosign:
                 ]
             )
 
+        container = self.container()
+
+        if docker_config:
+            container = container.with_env_variable(
+                "DOCKER_CONFIG", "/tmp/docker"
+            ).with_mounted_directory("/tmp/docker", docker_config, owner=self.user)
+
         container = (
-            self.container()
-            .with_env_variable("COSIGN_YES", "true")
+            container.with_env_variable("COSIGN_YES", "true")
             .with_secret_variable("COSIGN_PASSWORD", password)
             .with_secret_variable("COSIGN_PRIVATE_KEY", private_key)
             .with_exec(cmd, use_entrypoint=True)
