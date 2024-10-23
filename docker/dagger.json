@@ -1,6 +1,20 @@
 {
   "name": "docker",
   "sdk": "python",
+  "dependencies": [
+    {
+      "name": "crane",
+      "source": "github.com/opopops/daggerverse/crane@263ca17b685b3ef23d13517ce798d053d8376329"
+    },
+    {
+      "name": "cosign",
+      "source": "github.com/opopops/daggerverse/cosign@263ca17b685b3ef23d13517ce798d053d8376329"
+    },
+    {
+      "name": "grype",
+      "source": "github.com/opopops/daggerverse/grype@263ca17b685b3ef23d13517ce798d053d8376329"
+    }
+  ],
   "source": ".",
   "engineVersion": "v0.13.5"
 }
