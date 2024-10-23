@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Self
 
 import dagger
 from dagger import Doc, dag, function, field, object_type
@@ -17,10 +17,17 @@ class Crane:
     registry_password: Annotated[dagger.Secret, Doc("Registry password")] | None = (
         field(default=None)
     )
-    user: Annotated[str, Doc("Cosign image user")] = field(default="nonroot")
+    user: Annotated[str, Doc("image user")] | None = field(default="nonroot")
 
-    def container(self) -> dagger.Container:
-        """Returns Cosign container"""
+    container: Annotated[dagger.Container, Doc("Crane container")] | None = field(
+        default=None
+    )
+
+    def container_(self) -> dagger.Container:
+        """Returns container"""
+        if self.container:
+            return self.container
+
         container: dagger.Container = dag.container()
         if self.registry_username is not None and self.registry_password is not None:
             container = container.with_registry_auth(
@@ -28,7 +35,40 @@ class Crane:
                 username=self.registry_username,
                 secret=self.registry_password,
             )
-        return container.from_(address=self.image).with_user(self.user)
+        self.container = container.from_(address=self.image).with_user(self.user)
+
+        return self.container
+
+    @function
+    async def with_registry_auth(
+        self,
+        address: Annotated[str, Doc("Registry host")] | None = "index.docker.io",
+        username: Annotated[str, Doc("Registry username")] | None = None,
+        secret: Annotated[dagger.Secret, Doc("Registry password")] | None = None,
+        docker_config: Annotated[dagger.Directory, Doc("Docker config directory")]
+        | None = None,
+    ) -> Self:
+        """Authenticate with registry"""
+        container: dagger.Container = self.container_()
+        if docker_config:
+            self.container = container.with_env_variable(
+                "DOCKER_CONFIG", "/tmp/docker"
+            ).with_mounted_directory("/tmp/docker", docker_config, owner=self.user)
+        else:
+            cmd = [
+                "auth",
+                "login",
+                address,
+                "--username",
+                username,
+                "--password",
+                # TODO: use $REGISTRY_PASSWORD instead once dagger is fixed
+                await secret.plaintext(),
+            ]
+            self.container = container.with_secret_variable(
+                "REGISTRY_PASSWORD", secret
+            ).with_exec(cmd, use_entrypoint=True, expand=True)
+        return self
 
     @function
     async def manifest(
@@ -37,7 +77,7 @@ class Crane:
         platform: Annotated[str, Doc("Specifies the platform")] | None = None,
     ) -> str:
         """Get the manifest of an image"""
-        container: dagger.Container = self.container()
+        container: dagger.Container = self.container_()
         cmd = ["manifest", image]
 
         if platform:
@@ -56,7 +96,7 @@ class Crane:
         | None = None,
     ) -> str:
         """Tag remote image without downloading it."""
-        container: dagger.Container = self.container()
+        container: dagger.Container = self.container_()
         cmd = ["digest", image]
 
         if platform:
@@ -99,7 +139,7 @@ class Crane:
         if no_clobber:
             cmd.extend(["--no-clobber"])
 
-        return await self.container().with_exec(cmd, use_entrypoint=True).stdout()
+        return await self.container_().with_exec(cmd, use_entrypoint=True).stdout()
 
     @function
     async def tag(
@@ -114,4 +154,4 @@ class Crane:
         if platform:
             cmd.extend(["--platform", platform])
 
-        return await self.container().with_exec(cmd, use_entrypoint=True).stdout()
+        return await self.container_().with_exec(cmd, use_entrypoint=True).stdout()

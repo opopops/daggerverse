@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Self
 
 import dagger
 from dagger import Doc, dag, function, field, object_type
@@ -19,8 +19,15 @@ class Cosign:
     )
     user: Annotated[str, Doc("Cosign image user")] = field(default="nonroot")
 
-    def container(self) -> dagger.Container:
-        """Returns Cosign container"""
+    container: Annotated[dagger.Container, Doc("Crane container")] | None = field(
+        default=None
+    )
+
+    def container_(self) -> dagger.Container:
+        """Returns container"""
+        if self.container:
+            return self.container
+
         container: dagger.Container = dag.container()
         if self.registry_username is not None and self.registry_password is not None:
             container = container.with_registry_auth(
@@ -28,7 +35,39 @@ class Cosign:
                 username=self.registry_username,
                 secret=self.registry_password,
             )
-        return container.from_(address=self.image).with_user(self.user)
+        self.container = container.from_(address=self.image).with_user(self.user)
+
+        return self.container
+
+    @function
+    async def with_registry_auth(
+        self,
+        address: Annotated[str, Doc("Registry host")] | None = "index.docker.io",
+        username: Annotated[str, Doc("Registry username")] | None = None,
+        secret: Annotated[dagger.Secret, Doc("Registry password")] | None = None,
+        docker_config: Annotated[dagger.Directory, Doc("Docker config directory")]
+        | None = None,
+    ) -> Self:
+        """Authenticate with registry"""
+        container: dagger.Container = self.container_()
+        if docker_config:
+            self.container = container.with_env_variable(
+                "DOCKER_CONFIG", "/tmp/docker"
+            ).with_mounted_directory("/tmp/docker", docker_config, owner=self.user)
+        else:
+            cmd = [
+                "login",
+                address,
+                "--username",
+                username,
+                "--password",
+                # TODO: use $REGISTRY_PASSWORD instead once dagger is fixed
+                await secret.plaintext(),
+            ]
+            self.container = container.with_secret_variable(
+                "REGISTRY_PASSWORD", secret
+            ).with_exec(cmd, use_entrypoint=True, expand=True)
+        return self
 
     @function
     async def sign(
@@ -51,23 +90,22 @@ class Cosign:
         ) = None,
     ) -> str:
         """Sign image with Cosign"""
-
+        container = self.container_()
         cmd = ["sign", digest, "--key", "env://COSIGN_PRIVATE_KEY"]
 
         if recursive:
             cmd.append("--recursive")
 
         if registry_username and registry_password:
+            container.with_secret_variable("REGISTRY_PASSWORD", registry_password)
             cmd.extend(
                 [
                     "--registry-username",
                     registry_username,
                     "--registry-password",
-                    await registry_password.plaintext(),
+                    "$REGISTRY_PASSWORD",
                 ]
             )
-
-        container = self.container()
 
         if docker_config:
             container = container.with_env_variable(
@@ -78,7 +116,7 @@ class Cosign:
             container.with_env_variable("COSIGN_YES", "true")
             .with_secret_variable("COSIGN_PASSWORD", password)
             .with_secret_variable("COSIGN_PRIVATE_KEY", private_key)
-            .with_exec(cmd, use_entrypoint=True)
+            .with_exec(cmd, use_entrypoint=True, expand=True)
         )
 
         return await container.stdout()

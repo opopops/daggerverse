@@ -19,7 +19,7 @@ class Grype:
     )
     user: Annotated[str, Doc("Image user")] = field(default="nonroot")
 
-    def container(self) -> dagger.Container:
+    def container_(self) -> dagger.Container:
         """Returns grype container"""
         container: dagger.Container = dag.container()
         cache_dir: str = "/tmp/.grype/cache"
@@ -64,7 +64,7 @@ class Grype:
         if fail_on:
             cmd.extend(["--fail-on", fail_on])
 
-        return await self.container().with_exec(cmd, use_entrypoint=True).stdout()
+        return await self.container_().with_exec(cmd, use_entrypoint=True).stdout()
 
     @function
     async def scan_tarball(
@@ -90,7 +90,7 @@ class Grype:
             cmd.extend(["--fail-on", fail_on])
 
         return await (
-            self.container()
+            self.container_()
             .with_file(path=tar_file, source=tarball, owner=self.user)
             .with_exec(cmd, use_entrypoint=True)
             .stdout()
