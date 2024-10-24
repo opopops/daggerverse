@@ -155,3 +155,50 @@ class Crane:
             cmd.extend(["--platform", platform])
 
         return await self.container_().with_exec(cmd, use_entrypoint=True).stdout()
+
+    @function
+    async def push(
+        self,
+        path: Annotated[dagger.Directory, Doc("OCI layout dir")],
+        image: Annotated[str, Doc("Image tag")],
+        index: Annotated[bool, Doc("Push a collection of images as a single index")] | None = None,
+        platform: Annotated[str, Doc("Specifies the platform")] | None = None,
+    ) -> str:
+        """Push image from OCI layout dir"""
+        cmd = ["push", "$IMAGE_PATH", image]
+
+        if index:
+            cmd.extend(["--index"])
+        if platform:
+            cmd.extend(["--platform", platform])
+
+        container = (
+            self.container_()
+            .with_env_variable("IMAGE_PATH", "/crane/image")
+            .with_directory("$IMAGE_PATH", path, expand=True)
+            .with_exec(cmd, use_entrypoint=True, expand=True)
+        )
+
+        return await container.stdout()
+
+    @function
+    async def push_tarball(
+        self,
+        tarball: Annotated[dagger.File, Doc("Image tarball")],
+        image: Annotated[str, Doc("Image tag")],
+        platform: Annotated[str, Doc("Specifies the platform")] | None = None,
+    ) -> str:
+        """Push image from tarball"""
+        cmd = ["push", "$IMAGE_TARBALL", image]
+
+        if platform:
+            cmd.extend(["--platform", platform])
+
+        container = (
+            self.container_()
+            .with_env_variable("IMAGE_TARBALL", "/tmp/image.tar")
+            .with_file("$IMAGE_TARBALL", tarball, expand=True)
+            .with_exec(cmd, use_entrypoint=True, expand=True)
+        )
+
+        return await container.stdout()
