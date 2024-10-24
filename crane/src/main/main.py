@@ -9,7 +9,7 @@ class Crane:
     """Crane module"""
 
     image: Annotated[str, Doc("Crane image")] = field(
-        default="cgr.dev/chainguard/crane:latest"
+        default="cgr.dev/chainguard/crane:latest-dev"
     )
     registry_username: Annotated[str, Doc("Registry username")] | None = field(
         default=None
@@ -17,16 +17,15 @@ class Crane:
     registry_password: Annotated[dagger.Secret, Doc("Registry password")] | None = (
         field(default=None)
     )
-    user: Annotated[str, Doc("image user")] | None = field(default="nonroot")
+    user: Annotated[str, Doc("image user")] | None = field(default="65532")
 
-    container: Annotated[dagger.Container, Doc("Crane container")] | None = field(
-        default=None
-    )
+    container_: dagger.Container | None = None
 
-    def container_(self) -> dagger.Container:
+    @function
+    def container(self) -> dagger.Container:
         """Returns container"""
-        if self.container:
-            return self.container
+        if self.container_:
+            return self.container_
 
         container: dagger.Container = dag.container()
         if self.registry_username is not None and self.registry_password is not None:
@@ -35,39 +34,31 @@ class Crane:
                 username=self.registry_username,
                 secret=self.registry_password,
             )
-        self.container = container.from_(address=self.image).with_user(self.user)
+        self.container_ = container.from_(address=self.image).with_user(self.user)
 
-        return self.container
+        return self.container_
 
     @function
     async def with_registry_auth(
         self,
-        address: Annotated[str, Doc("Registry host")] | None = "index.docker.io",
-        username: Annotated[str, Doc("Registry username")] | None = None,
-        secret: Annotated[dagger.Secret, Doc("Registry password")] | None = None,
-        docker_config: Annotated[dagger.Directory, Doc("Docker config directory")]
-        | None = None,
+        username: Annotated[str, Doc("Registry username")],
+        secret: Annotated[dagger.Secret, Doc("Registry password")],
+        address: Annotated[str, Doc("Registry host")] | None = "docker.io",
     ) -> Self:
         """Authenticate with registry"""
-        container: dagger.Container = self.container_()
-        if docker_config:
-            self.container = container.with_env_variable(
-                "DOCKER_CONFIG", "/tmp/docker"
-            ).with_mounted_directory("/tmp/docker", docker_config, owner=self.user)
-        else:
-            cmd = [
-                "auth",
-                "login",
-                address,
-                "--username",
-                username,
-                "--password",
-                # TODO: use $REGISTRY_PASSWORD instead once dagger is fixed
-                await secret.plaintext(),
-            ]
-            self.container = container.with_secret_variable(
-                "REGISTRY_PASSWORD", secret
-            ).with_exec(cmd, use_entrypoint=True, expand=True)
+        container: dagger.Container = self.container()
+        cmd = [
+            "sh",
+            "-c",
+            (
+                f"crane auth login {address}"
+                f" --username {username}"
+                " --password ${REGISTRY_PASSWORD}"
+            ),
+        ]
+        self.container_ = container.with_secret_variable(
+            "REGISTRY_PASSWORD", secret
+        ).with_exec(cmd, use_entrypoint=False)
         return self
 
     @function
@@ -77,7 +68,7 @@ class Crane:
         platform: Annotated[str, Doc("Specifies the platform")] | None = None,
     ) -> str:
         """Get the manifest of an image"""
-        container: dagger.Container = self.container_()
+        container: dagger.Container = self.container()
         cmd = ["manifest", image]
 
         if platform:
@@ -96,7 +87,7 @@ class Crane:
         | None = None,
     ) -> str:
         """Tag remote image without downloading it."""
-        container: dagger.Container = self.container_()
+        container: dagger.Container = self.container()
         cmd = ["digest", image]
 
         if platform:
@@ -113,7 +104,7 @@ class Crane:
         return await container.with_exec(cmd, use_entrypoint=True).stdout()
 
     @function
-    async def cp(
+    async def copy(
         self,
         source: Annotated[str, Doc("Source image")],
         target: Annotated[str, Doc("Target image")],
@@ -125,7 +116,7 @@ class Crane:
         | None = False,
     ) -> str:
         """Tag remote image without downloading it."""
-        cmd = ["cp", source, target]
+        cmd = ["copy", source, target]
 
         if platform:
             cmd.extend(["--platform", platform])
@@ -139,7 +130,7 @@ class Crane:
         if no_clobber:
             cmd.extend(["--no-clobber"])
 
-        return await self.container_().with_exec(cmd, use_entrypoint=True).stdout()
+        return await self.container().with_exec(cmd, use_entrypoint=True).stdout()
 
     @function
     async def tag(
@@ -154,14 +145,15 @@ class Crane:
         if platform:
             cmd.extend(["--platform", platform])
 
-        return await self.container_().with_exec(cmd, use_entrypoint=True).stdout()
+        return await self.container().with_exec(cmd, use_entrypoint=True).stdout()
 
     @function
     async def push(
         self,
         path: Annotated[dagger.Directory, Doc("OCI layout dir")],
         image: Annotated[str, Doc("Image tag")],
-        index: Annotated[bool, Doc("Push a collection of images as a single index")] | None = None,
+        index: Annotated[bool, Doc("Push a collection of images as a single index")]
+        | None = None,
         platform: Annotated[str, Doc("Specifies the platform")] | None = None,
     ) -> str:
         """Push image from OCI layout dir"""
@@ -173,7 +165,7 @@ class Crane:
             cmd.extend(["--platform", platform])
 
         container = (
-            self.container_()
+            self.container()
             .with_env_variable("IMAGE_PATH", "/crane/image")
             .with_directory("$IMAGE_PATH", path, expand=True)
             .with_exec(cmd, use_entrypoint=True, expand=True)
@@ -195,7 +187,7 @@ class Crane:
             cmd.extend(["--platform", platform])
 
         container = (
-            self.container_()
+            self.container()
             .with_env_variable("IMAGE_TARBALL", "/tmp/image.tar")
             .with_file("$IMAGE_TARBALL", tarball, expand=True)
             .with_exec(cmd, use_entrypoint=True, expand=True)

@@ -1,14 +1,13 @@
 import json
 from typing import Annotated, Self
 from urllib.parse import urlparse
-
 import dagger
-from dagger import Doc, dag, field, function, object_type
+from dagger import Doc, dag, function, field, object_type
 
 
 @object_type
 class Image:
-    """Docker Image"""
+    """Apko Image module"""
 
     address: Annotated[str, Doc("Image address")]
 
@@ -20,11 +19,12 @@ class Image:
     container_: dagger.Container | None = None
 
     @function
-    def container(self) -> dagger.Container:
+    def container(self, platform: dagger.Platform | None = None) -> dagger.Container:
         """Returns authenticated container"""
         if self.container_:
             return self.container_
-        container: dagger.Container = dag.container()
+
+        container: dagger.Container = dag.container(platform=platform)
         if self.username is not None and self.password is not None:
             container = container.with_registry_auth(
                 address=self.address, username=self.username, secret=self.password

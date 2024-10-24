@@ -1,7 +1,11 @@
 {
-  "name": "docker",
+  "name": "apko",
   "sdk": "python",
   "dependencies": [
+    {
+      "name": "grype",
+      "source": "../grype"
+    },
     {
       "name": "cosign",
       "source": "../cosign"
@@ -9,10 +13,6 @@
     {
       "name": "crane",
       "source": "../crane"
-    },
-    {
-      "name": "grype",
-      "source": "../grype"
     }
   ],
   "source": ".",
