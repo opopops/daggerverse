@@ -1,14 +1,13 @@
 import json
 from typing import Annotated, Self
 from urllib.parse import urlparse
-
 import dagger
-from dagger import Doc, dag, field, function, object_type
+from dagger import Doc, dag, function, field, object_type
 
 
 @object_type
 class Image:
-    """Docker Image"""
+    """Apko Image module"""
 
     address: Annotated[str, Doc("Image address")]
 
@@ -19,7 +18,7 @@ class Image:
         field(default=None)
     )
 
-    container: Annotated[dagger.Container, Doc("Container")] | None = field(
+    container: Annotated[dagger.Container, Doc("Apko container")] | None = field(
         default=None
     )
 
@@ -48,46 +47,6 @@ class Image:
                 secret=self.registry_password,
             )
         return crane
-
-    @function
-    async def grype(
-        self,
-        fail_on: (
-            Annotated[
-                str,
-                Doc(
-                    """Set the return code to 1 if a vulnerability is found
-                    with a severity >= the given severity"""
-                ),
-            ]
-            | None
-        ) = None,
-        output_format: Annotated[str, Doc("Report output formatter")] = "table",
-    ) -> str:
-        """Scan image using Grype"""
-        grype = dag.grype()
-        return await grype.scan_image(
-            source=self.address, fail_on=fail_on, output_format=output_format
-        )
-
-    @function
-    async def with_grype(
-        self,
-        fail_on: (
-            Annotated[
-                str,
-                Doc(
-                    """Set the return code to 1 if a vulnerability is found
-                    with a severity >= the given severity"""
-                ),
-            ]
-            | None
-        ) = None,
-        output_format: Annotated[str, Doc("Report output formatter")] = "table",
-    ) -> Self:
-        """Scan image using Grype (for chaining)"""
-        await self.grype(fail_on=fail_on, output_format=output_format)
-        return self
 
     def cosign(self) -> dagger.Cosign:
         """Returns authenticated cosign"""
@@ -142,6 +101,46 @@ class Image:
     async def with_tag(self, tag: Annotated[str, Doc("Tag")]) -> Self:
         """Tag image (for chaining)"""
         await self.tag(tag=tag)
+        return self
+
+    @function
+    async def grype(
+        self,
+        fail_on: (
+            Annotated[
+                str,
+                Doc(
+                    """Set the return code to 1 if a vulnerability is found
+                    with a severity >= the given severity"""
+                ),
+            ]
+            | None
+        ) = None,
+        output_format: Annotated[str, Doc("Report output formatter")] = "table",
+    ) -> str:
+        """Scan image using Grype"""
+        grype = dag.grype()
+        return await grype.scan_image(
+            source=self.address, fail_on=fail_on, output_format=output_format
+        )
+
+    @function
+    async def with_grype(
+        self,
+        fail_on: (
+            Annotated[
+                str,
+                Doc(
+                    """Set the return code to 1 if a vulnerability is found
+                    with a severity >= the given severity"""
+                ),
+            ]
+            | None
+        ) = None,
+        output_format: Annotated[str, Doc("Report output formatter")] = "table",
+    ) -> Self:
+        """Scan image using Grype (for chaining)"""
+        await self.grype(fail_on=fail_on, output_format=output_format)
         return self
 
     @function

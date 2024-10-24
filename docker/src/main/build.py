@@ -32,7 +32,7 @@ class Build:
                 return platform_variant
 
     @function
-    async def export(
+    async def as_tarball(
         self, compress: Annotated[bool, Doc("Enable compression")] | None = False
     ) -> dagger.File:
         """Export build as tarball"""
@@ -61,9 +61,11 @@ class Build:
     ) -> str:
         """Scan build result using Grype"""
         grype = dag.grype()
-        tarball = await self.export()
-        return await grype.scan_tarball(
-            tarball=tarball, fail_on=fail_on, output_format=output_format
+        return await grype.scan_file(
+            source=await self.as_tarball(),
+            scheme="oci-archive",
+            fail_on=fail_on,
+            output_format=output_format,
         )
 
     @function
@@ -86,15 +88,12 @@ class Build:
         return self
 
     @function
-    async def publish(
-        self, images: Annotated[list[str], Doc("Image tags"), Name("image")]
-    ) -> Image:
+    async def publish(self, image: Annotated[str, Doc("Image tags")]) -> Image:
         """Publish multi-arch image"""
         ref: str = None
-        for image in images:
-            ref = await dag.container().publish(
-                address=image, platform_variants=self.platform_variants
-            )
+        ref = await dag.container().publish(
+            address=image, platform_variants=self.platform_variants
+        )
         return Image(
             address=ref,
             registry_username=self.registry_username,

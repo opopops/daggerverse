@@ -1,0 +1,20 @@
+{
+  "name": "apko",
+  "sdk": "python",
+  "dependencies": [
+    {
+      "name": "grype",
+      "source": "github.com/opopops/daggerverse/grype@6134c4d4b8154b5e495a9bde2b06e9f688365f41"
+    },
+    {
+      "name": "cosign",
+      "source": "github.com/opopops/daggerverse/cosign@6134c4d4b8154b5e495a9bde2b06e9f688365f41"
+    },
+    {
+      "name": "crane",
+      "source": "github.com/opopops/daggerverse/crane@6134c4d4b8154b5e495a9bde2b06e9f688365f41"
+    }
+  ],
+  "source": ".",
+  "engineVersion": "v0.13.5"
+}
