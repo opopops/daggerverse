@@ -39,7 +39,7 @@ class Cosign:
         return self.container_
 
     @function
-    async def with_registry_auth(
+    def with_registry_auth(
         self,
         username: Annotated[str, Doc("Registry username")],
         secret: Annotated[dagger.Secret, Doc("Registry password")],
