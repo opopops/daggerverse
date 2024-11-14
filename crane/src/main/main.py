@@ -115,7 +115,7 @@ class Crane:
         no_clobber: Annotated[bool, Doc("Avoid overwriting existing tags in DST")]
         | None = False,
     ) -> str:
-        """Tag remote image without downloading it."""
+        """Copy images."""
         cmd = ["copy", source, target]
 
         if platform:
@@ -133,6 +133,29 @@ class Crane:
         return await self.container().with_exec(cmd, use_entrypoint=True).stdout()
 
     @function
+    async def with_copy(
+        self,
+        source: Annotated[str, Doc("Source image")],
+        target: Annotated[str, Doc("Target image")],
+        platform: Annotated[str, Doc("Specifies the platform")] | None = None,
+        jobs: Annotated[int, Doc("The maximum number of concurrent copies")]
+        | None = None,
+        all_tags: Annotated[bool, Doc("Copy all tags from SRC to DST")] | None = False,
+        no_clobber: Annotated[bool, Doc("Avoid overwriting existing tags in DST")]
+        | None = False,
+    ) -> Self:
+        """Copy images (For chaining)."""
+        await self.copy(
+            source=source,
+            target=target,
+            platform=platform,
+            jobs=jobs,
+            all_tags=all_tags,
+            no_clobber=no_clobber,
+        )
+        return self
+
+    @function
     async def tag(
         self,
         image: Annotated[str, Doc("Image")],
@@ -146,6 +169,21 @@ class Crane:
             cmd.extend(["--platform", platform])
 
         return await self.container().with_exec(cmd, use_entrypoint=True).stdout()
+
+    @function
+    async def with_tag(
+        self,
+        image: Annotated[str, Doc("Image")],
+        tag: Annotated[str, Doc("New tag")],
+        platform: Annotated[str, Doc("Specifies the platform")] | None = None,
+    ) -> Self:
+        """Tag remote image without downloading it (For chaining)."""
+        await self.tag(
+            image=image,
+            tag=tag,
+            platform=platform,
+        )
+        return self
 
     @function
     async def push(
@@ -174,6 +212,24 @@ class Crane:
         return await container.stdout()
 
     @function
+    async def with_push(
+        self,
+        path: Annotated[dagger.Directory, Doc("OCI layout dir")],
+        image: Annotated[str, Doc("Image tag")],
+        index: Annotated[bool, Doc("Push a collection of images as a single index")]
+        | None = None,
+        platform: Annotated[str, Doc("Specifies the platform")] | None = None,
+    ) -> Self:
+        """Push image from OCI layout dir (For chaining)"""
+        await self.push(
+            path=path,
+            image=image,
+            index=index,
+            platform=platform,
+        )
+        return self
+
+    @function
     async def push_tarball(
         self,
         tarball: Annotated[dagger.File, Doc("Image tarball")],
@@ -194,3 +250,18 @@ class Crane:
         )
 
         return await container.stdout()
+
+    @function
+    async def with_push_tarball(
+        self,
+        tarball: Annotated[dagger.File, Doc("Image tarball")],
+        image: Annotated[str, Doc("Image tag")],
+        platform: Annotated[str, Doc("Specifies the platform")] | None = None,
+    ) -> Self:
+        """Push image from tarball (For chaining)"""
+        await self.push_tarball(
+            tarball=tarball,
+            image=image,
+            platform=platform,
+        )
+        return self
