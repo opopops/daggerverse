@@ -1,20 +1,23 @@
 {
   "name": "apko",
+  "engineVersion": "v0.14.0",
   "sdk": "python",
   "dependencies": [
     {
-      "name": "grype",
-      "source": "../grype"
-    },
-    {
       "name": "cosign",
-      "source": "../cosign"
+      "source": "../cosign",
+      "pin": ""
     },
     {
       "name": "crane",
-      "source": "../crane"
+      "source": "../crane",
+      "pin": ""
+    },
+    {
+      "name": "grype",
+      "source": "../grype",
+      "pin": ""
     }
   ],
-  "source": ".",
-  "engineVersion": "v0.13.7"
+  "source": "."
 }
