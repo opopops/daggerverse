@@ -1,22 +1,19 @@
 {
   "name": "docker",
-  "engineVersion": "v0.14.0",
+  "engineVersion": "v0.15.1",
   "sdk": "python",
   "dependencies": [
     {
       "name": "cosign",
-      "source": "../cosign",
-      "pin": ""
+      "source": "../cosign"
     },
     {
       "name": "crane",
-      "source": "../crane",
-      "pin": ""
+      "source": "../crane"
     },
     {
       "name": "grype",
-      "source": "../grype",
-      "pin": ""
+      "source": "../grype"
     }
   ],
   "source": "."
