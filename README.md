@@ -6,6 +6,7 @@ My personal collection of Dagger modules.
 
 - **Docker**: https://daggerverse.dev/mod/github.com/opopops/daggerverse/docker
 - **Apko**: https://daggerverse.dev/mod/github.com/opopops/daggerverse/apko
+- **Melange**: https://daggerverse.dev/mod/github.com/opopops/daggerverse/melange
 - **Crane**: https://daggerverse.dev/mod/github.com/opopops/daggerverse/crane
 - **Grype**: https://daggerverse.dev/mod/github.com/opopops/daggerverse/grype
 - **Cosign**: https://daggerverse.dev/mod/github.com/opopops/daggerverse/cosign
