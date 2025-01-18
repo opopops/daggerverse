@@ -42,6 +42,7 @@ class Melange:
             .with_env_variable("MELANGE_WORK_DIR", "/tmp/work")
             .with_env_variable("MELANGE_SIGNING_KEY", "/tmp/melange.rsa")
             .with_env_variable("MELANGE_OUTPUT_DIR", "/tmp/packages")
+            .with_env_variable("MELANGE_SRC_DIR", "/tmp/src")
             .with_mounted_cache(
                 "$MELANGE_CACHE_DIR",
                 dag.cache_volume("MELANGE_CACHE"),
@@ -97,6 +98,10 @@ class Melange:
     def build(
         self,
         config: Annotated[dagger.File, Doc("Config file")],
+        source_dir: Annotated[
+            dagger.Directory, Doc("Directory used for included sources")
+        ]
+        | None = None,
         signing_key: Annotated[dagger.File, Doc("Key to use for signing")]
         | None = None,
         arch: Annotated[str, Doc("Architectures to build for")] | None = None,
@@ -131,6 +136,15 @@ class Melange:
             "--out-dir",
             "$MELANGE_OUTPUT_DIR",
         ]
+
+        if source_dir:
+            melange = melange.with_mounted_directory(
+                "$MELANGE_SRC_DIR",
+                source=source_dir,
+                owner=self.user,
+                expand=True,
+            )
+            cmd.extend(["--source-dir", "$MELANGE_SRC_DIR"])
 
         if arch:
             cmd.extend(["--arch", arch])
