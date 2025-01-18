@@ -54,6 +54,12 @@ class Apko:
                 owner=self.user,
                 expand=True,
             )
+            .with_mounted_cache(
+                "/.docker",
+                dag.cache_volume("APKO_DOCKER_CONFIG"),
+                sharing=dagger.CacheSharingMode("LOCKED"),
+                owner=self.user,
+            )
         )
         return self.container_
 
@@ -81,7 +87,7 @@ class Apko:
         return self
 
     @function
-    async def build(
+    def build(
         self,
         tag: Annotated[str, Doc("Image tag")],
         workdir: Annotated[dagger.Directory, Doc("Working dir"), Name("context")],
@@ -116,8 +122,8 @@ class Apko:
                 "$APKO_OUTPUT_DIR", expand=True
             ),
             registry=self.registry,
-            registry_username=self.username,
-            registry_password=self.password,
+            username=self.username,
+            password=self.password,
         )
 
     @function
@@ -126,6 +132,7 @@ class Apko:
         tag: Annotated[str, Doc("Image tag")],
         workdir: Annotated[dagger.Directory, Doc("Working dir"), Name("context")],
         config: Annotated[str, Doc("Config file")] = "apko.yaml",
+        sbom: Annotated[bool, Doc("generate an SBOM")] | None = True,
         arch: Annotated[str, Doc("Architectures to build for")] | None = None,
     ) -> Image:
         """Publish an image using Apko"""
@@ -143,12 +150,15 @@ class Apko:
             tag,
             "--cache-dir",
             "$APKO_CACHE_DIR",
-            "--sbom-path",
-            "$APKO_OUTPUT_DIR",
         ]
+
+        if sbom:
+            cmd.extend(["--sbom=true", "--sbom-path", "$APKO_OUTPUT_DIR"])
+        else:
+            cmd.append("--sbom=false")
 
         if arch:
             cmd.extend(["--arch", arch])
 
-        apko.with_exec(cmd, use_entrypoint=True, expand=True)
+        await apko.with_exec(cmd, use_entrypoint=True, expand=True)
         return Image(address=tag, username=self.username, password=self.password)
