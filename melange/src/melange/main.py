@@ -1,4 +1,5 @@
 from typing import Annotated, Self
+import os
 import dagger
 from dagger import Doc, dag, function, field, object_type
 
@@ -95,9 +96,51 @@ class Melange:
         return self
 
     @function
-    def build(
+    async def bump(
         self,
         config: Annotated[dagger.File, Doc("Config file")],
+        version: Annotated[str, Doc("Version to bump to")],
+    ) -> dagger.File:
+        """Update a Melange YAML file to reflect a new package version"""
+        config_name = await config.name()
+
+        melange = self.container().with_mounted_file(
+            path=os.path.join("$MELANGE_WORK_DIR", config_name),
+            source=config,
+            owner=self.user,
+            expand=True,
+        )
+
+        cmd = [
+            "bump",
+            config_name,
+            version,
+        ]
+
+        self.container_ = melange.with_exec(
+            cmd,
+            use_entrypoint=True,
+            expand=True,
+        )
+        return self.container_.file(
+            os.path.join("$MELANGE_WORK_DIR", config_name), expand=True
+        )
+
+    @function
+    async def with_bump(
+        self,
+        config: Annotated[dagger.File, Doc("Config file")],
+        version: Annotated[str, Doc("Version to bump to")],
+    ) -> Self:
+        """Update a Melange YAML file to reflect a new package version for chaining"""
+        await self.bump(config=config, version=version)
+        return self
+
+    @function
+    async def build(
+        self,
+        config: Annotated[dagger.File, Doc("Config file")],
+        version: Annotated[str, Doc("Version to bump to")] | None = None,
         source_dir: Annotated[
             dagger.Directory, Doc("Directory used for included sources")
         ]
@@ -107,12 +150,25 @@ class Melange:
         arch: Annotated[str, Doc("Architectures to build for")] | None = None,
     ) -> dagger.Directory:
         """Build a package from a YAML configuration file"""
+        config_name = await config.name()
+
         melange = self.container().with_mounted_file(
-            path="$MELANGE_WORK_DIR/melange.yaml",
+            path=os.path.join("$MELANGE_WORK_DIR", config_name),
             source=config,
             owner=self.user,
             expand=True,
         )
+
+        if version:
+            melange = melange.with_exec(
+                [
+                    "bump",
+                    config_name,
+                    version,
+                ],
+                use_entrypoint=True,
+                expand=True,
+            )
 
         if signing_key is None:
             signing_key, _ = self.keygen()
@@ -126,7 +182,7 @@ class Melange:
 
         cmd = [
             "build",
-            "melange.yaml",
+            config_name,
             "--apk-cache-dir",
             "$MELANGE_APK_CACHE_DIR",
             "--cache-dir",
@@ -160,13 +216,16 @@ class Melange:
         )
 
     @function
-    def with_build(
+    async def with_build(
         self,
         config: Annotated[dagger.File, Doc("Config file")],
+        version: Annotated[str, Doc("Version to bump to")] | None = None,
         signing_key: Annotated[dagger.File, Doc("Key to use for signing")]
         | None = None,
         arch: Annotated[str, Doc("Architectures to build for")] | None = None,
     ) -> Self:
         """Build a package from a YAML configuration file (for chaining)"""
-        self.build(config=config, signing_key=signing_key, arch=arch)
+        await self.build(
+            config=config, version=version, signing_key=signing_key, arch=arch
+        )
         return self
