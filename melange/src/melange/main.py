@@ -212,7 +212,7 @@ class Melange:
             expand=True,
         )
         return self.container_.directory("$MELANGE_OUTPUT_DIR", expand=True).with_file(
-            "melange.rsa.pub", self.public_key_, permissions=644
+            "melange.rsa.pub", self.public_key_, permissions=0o644
         )
 
     @function
