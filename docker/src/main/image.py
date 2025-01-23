@@ -122,11 +122,11 @@ class Image:
             ]
             | None
         ) = None,
-        output_format: Annotated[str, Doc("Report output formatter")] = "table",
-    ) -> str:
+        output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
+    ) -> dagger.File:
         """Scan image using Grype"""
         grype = await self.grype()
-        return await grype.scan_image(
+        return grype.scan_image(
             source=self.address, fail_on=fail_on, output_format=output_format
         )
 
@@ -143,7 +143,7 @@ class Image:
             ]
             | None
         ) = None,
-        output_format: Annotated[str, Doc("Report output formatter")] = "table",
+        output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
     ) -> Self:
         """Scan image using Grype (for chaining)"""
         await self.scan(fail_on=fail_on, output_format=output_format)

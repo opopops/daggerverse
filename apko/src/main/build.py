@@ -63,7 +63,7 @@ class Build:
         return self.directory
 
     @function
-    async def scan(
+    def scan(
         self,
         fail_on: (
             Annotated[
@@ -75,11 +75,11 @@ class Build:
             ]
             | None
         ) = None,
-        output_format: Annotated[str, Doc("Report output formatter")] = "table",
-    ) -> str:
+        output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
+    ) -> dagger.File:
         """Scan build result using Grype"""
         grype = dag.grype()
-        return await grype.scan_directory(
+        return grype.scan_directory(
             source=self.directory,
             scheme="oci-dir",
             fail_on=fail_on,
@@ -87,7 +87,7 @@ class Build:
         )
 
     @function
-    async def with_scan(
+    def with_scan(
         self,
         fail_on: (
             Annotated[
@@ -99,10 +99,10 @@ class Build:
             ]
             | None
         ) = None,
-        output_format: Annotated[str, Doc("Report output formatter")] = "table",
+        output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
     ) -> Self:
         """Scan build result using Grype (for chaining)"""
-        await self.scan(fail_on=fail_on, output_format=output_format)
+        self.scan(fail_on=fail_on, output_format=output_format)
         return self
 
     @function

@@ -90,11 +90,11 @@ class Build:
             ]
             | None
         ) = None,
-        output_format: Annotated[str, Doc("Report output formatter")] = "table",
-    ) -> str:
+        output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
+    ) -> dagger.File:
         """Scan build result using Grype"""
         grype = dag.grype()
-        return await grype.scan_file(
+        return grype.scan_file(
             source=await self.as_tarball(),
             scheme="oci-archive",
             fail_on=fail_on,
@@ -114,7 +114,7 @@ class Build:
             ]
             | None
         ) = None,
-        output_format: Annotated[str, Doc("Report output formatter")] = "table",
+        output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
     ) -> Self:
         """Scan build result using Grype (for chaining)"""
         await self.scan(fail_on=fail_on, output_format=output_format)
