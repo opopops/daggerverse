@@ -76,7 +76,7 @@ class Grype:
         return self
 
     @function
-    async def scan(
+    def scan(
         self,
         source: Annotated[str, Doc("Source to scan")],
         fail_on: (
@@ -89,20 +89,22 @@ class Grype:
             ]
             | None
         ) = None,
-        output_format: Annotated[str, Doc("Report output formatter")] = "table",
-    ) -> str:
+        output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
+    ) -> dagger.File:
         """Scan"""
-        cmd = [source, "--output", output_format]
+        output_file = f"/tmp/report.{output_format}"
+
+        cmd = [source, "--output", output_format, "--file", output_file]
 
         if fail_on:
             cmd.extend(["--fail-on", fail_on])
 
         container: dagger.Container = self.container()
         container = container.with_exec(cmd, use_entrypoint=True, expand=True)
-        return await container.stdout()
+        return container.file(output_file)
 
     @function
-    async def with_scan(
+    def with_scan(
         self,
         source: Annotated[str, Doc("Source to scan")],
         fail_on: (
@@ -115,14 +117,14 @@ class Grype:
             ]
             | None
         ) = None,
-        output_format: Annotated[str, Doc("Report output formatter")] = "table",
+        output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
     ) -> Self:
         """Scan (for chaining)"""
-        await self.scan(source=source, fail_on=fail_on, output_format=output_format)
+        self.scan(source=source, fail_on=fail_on, output_format=output_format)
         return self
 
     @function
-    async def scan_image(
+    def scan_image(
         self,
         source: Annotated[str, Doc("Image to scan")],
         scheme: Annotated[str, Doc("Source scheme")] | None = "registry",
@@ -136,20 +138,22 @@ class Grype:
             ]
             | None
         ) = None,
-        output_format: Annotated[str, Doc("Report output formatter")] = "table",
-    ) -> str:
+        output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
+    ) -> dagger.File:
         """Scan container image"""
-        cmd = [f"{scheme}:{source}", "--output", output_format]
+        output_file = f"/tmp/report.{output_format}"
+
+        cmd = [f"{scheme}:{source}", "--output", output_format, "--file", output_file]
 
         if fail_on:
             cmd.extend(["--fail-on", fail_on])
 
         container: dagger.Container = self.container()
         container = container.with_exec(cmd, use_entrypoint=True, expand=True)
-        return await container.stdout()
+        return container.file(output_file)
 
     @function
-    async def with_scan_image(
+    def with_scan_image(
         self,
         source: Annotated[str, Doc("Image to scan")],
         scheme: Annotated[str, Doc("Source scheme")] | None = "registry",
@@ -163,16 +167,16 @@ class Grype:
             ]
             | None
         ) = None,
-        output_format: Annotated[str, Doc("Report output formatter")] = "table",
+        output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
     ) -> Self:
         """Scan container image (for chaining)"""
-        await self.scan_image(
+        self.scan_image(
             source=source, scheme=scheme, fail_on=fail_on, output_format=output_format
         )
         return self
 
     @function
-    async def scan_directory(
+    def scan_directory(
         self,
         source: Annotated[dagger.Directory, Doc("Directory to scan")],
         scheme: Annotated[str, Doc("Source scheme")] | None = "dir",
@@ -186,16 +190,24 @@ class Grype:
             ]
             | None
         ) = None,
-        output_format: Annotated[str, Doc("Report output formatter")] = "table",
-    ) -> str:
+        output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
+    ) -> dagger.File:
         """Scan directory"""
-        cmd = [f"{scheme}:$GRYPE_DIR_TO_SCAN", "--output", output_format]
+        output_file = f"/tmp/report.{output_format}"
+
+        cmd = [
+            f"{scheme}:$GRYPE_DIR_TO_SCAN",
+            "--output",
+            output_format,
+            "--file",
+            output_file,
+        ]
 
         if fail_on:
             cmd.extend(["--fail-on", fail_on])
 
         container: dagger.Container = (
-            await self.container()
+            self.container()
             .with_env_variable("GRYPE_DIR_TO_SCAN", "/grype")
             .with_directory(
                 path="$GRYPE_DIR_TO_SCAN",
@@ -205,10 +217,10 @@ class Grype:
             )
             .with_exec(cmd, use_entrypoint=True, expand=True)
         )
-        return await container.stdout()
+        return container.file(output_file)
 
     @function
-    async def with_scan_directory(
+    def with_scan_directory(
         self,
         source: Annotated[dagger.Directory, Doc("Directory to scan")],
         scheme: Annotated[str, Doc("Source scheme")] | None = "registry",
@@ -222,16 +234,16 @@ class Grype:
             ]
             | None
         ) = None,
-        output_format: Annotated[str, Doc("Report output formatter")] = "table",
+        output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
     ) -> Self:
         """Scan dir (for chaining)"""
-        await self.scan_dir(
+        self.scan_directory(
             source=source, scheme=scheme, fail_on=fail_on, output_format=output_format
         )
         return self
 
     @function
-    async def scan_file(
+    def scan_file(
         self,
         source: Annotated[dagger.File, Doc("File to scan")],
         scheme: Annotated[str, Doc("Source scheme")] | None = "file",
@@ -245,27 +257,34 @@ class Grype:
             ]
             | None
         ) = None,
-        output_format: Annotated[str, Doc("Report output formatter")] = "table",
-    ) -> str:
+        output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
+    ) -> dagger.File:
         """Scan file"""
+        output_file = f"/tmp/report.{output_format}"
 
-        cmd = [f"{scheme}:$GRYPE_FILE_TO_SCAN", "--output", output_format]
+        cmd = [
+            f"{scheme}:$GRYPE_FILE_TO_SCAN",
+            "--output",
+            output_format,
+            "--file",
+            output_file,
+        ]
 
         if fail_on:
             cmd.extend(["--fail-on", fail_on])
 
         container: dagger.Container = (
-            await self.container()
+            self.container()
             .with_env_variable("GRYPE_FILE_TO_SCAN", "/grype.file")
             .with_file(
                 path="$GRYPE_FILE_TO_SCAN", source=source, owner=self.user, expand=True
             )
             .with_exec(cmd, use_entrypoint=True, expand=True)
         )
-        return await container.stdout()
+        return container.file(output_file)
 
     @function
-    async def with_scan_file(
+    def with_scan_file(
         self,
         source: Annotated[dagger.File, Doc("File to scan")],
         scheme: Annotated[str, Doc("Source scheme")] | None = "registry",
@@ -279,10 +298,10 @@ class Grype:
             ]
             | None
         ) = None,
-        output_format: Annotated[str, Doc("Report output formatter")] = "table",
+        output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
     ) -> Self:
         """Scan file (for chaining)"""
-        await self.scan_file(
+        self.scan_file(
             source=source, scheme=scheme, fail_on=fail_on, output_format=output_format
         )
         return self
