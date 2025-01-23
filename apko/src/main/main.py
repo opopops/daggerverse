@@ -134,6 +134,8 @@ class Apko:
         config: Annotated[str, Doc("Config file")] = "apko.yaml",
         sbom: Annotated[bool, Doc("generate an SBOM")] | None = True,
         arch: Annotated[str, Doc("Architectures to build for")] | None = None,
+        local: Annotated[bool, Doc("Publish image just to local Docker daemon")]
+        | None = False,
     ) -> Image:
         """Publish an image using Apko"""
         apko = (
@@ -159,6 +161,9 @@ class Apko:
 
         if arch:
             cmd.extend(["--arch", arch])
+
+        if local:
+            cmd.append("--local")
 
         await apko.with_exec(cmd, use_entrypoint=True, expand=True)
         return Image(address=tag, username=self.username, password=self.password)
