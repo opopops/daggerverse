@@ -186,7 +186,9 @@ class Melange:
                 expand=True,
             )
 
-        if signing_key is None:
+        if signing_key:
+            self.signing_key_ = signing_key
+        else:
             self.keygen()
 
         melange = melange.with_mounted_file(
