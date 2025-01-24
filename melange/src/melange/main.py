@@ -182,7 +182,7 @@ class Melange:
             )
 
         if signing_key is None:
-            signing_key, _ = self.keygen()
+            signing_key = self.keygen()
 
         melange = melange.with_mounted_file(
             path="$MELANGE_SIGNING_KEY",
