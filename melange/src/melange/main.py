@@ -19,7 +19,7 @@ class Melange:
 
     container_: dagger.Container | None = None
 
-    private_key_: dagger.File | None = None
+    signing_key_: dagger.File | None = None
     public_key_: dagger.File | None = None
 
     @function
@@ -73,7 +73,7 @@ class Melange:
     def keygen(
         self,
         key_size: Annotated[int, Doc("the size of the prime to calculate ")] = 4096,
-    ) -> dagger.File:
+    ) -> dagger.Directory:
         """Generate a key for package signing"""
         cmd = [
             "keygen",
@@ -85,12 +85,12 @@ class Melange:
         self.container_ = self.container().with_exec(
             cmd, use_entrypoint=True, expand=True
         )
-        self.private_key_ = self.container().file("$MELANGE_SIGNING_KEY", expand=True)
+        self.signing_key_ = self.container().file("$MELANGE_SIGNING_KEY", expand=True)
         self.public_key_ = self.container().file(
             "$MELANGE_SIGNING_KEY.pub", expand=True
         )
 
-        return self.private_key_
+        return self.container().directory("$MELANGE_KEYRING_DIR", expand=True)
 
     @function
     def with_keygen(
@@ -102,9 +102,14 @@ class Melange:
         return self
 
     @function
-    def keyring(self) -> dagger.Directory:
-        """Return keyring as a directory"""
-        return self.container().directory("$MELANGE_KEYRING_DIR", expand=True)
+    def signing_key(self) -> dagger.File:
+        """Return the generated signing key"""
+        return self.signing_key_
+
+    @function
+    def public_key(self) -> dagger.File:
+        """Return the generated public key"""
+        return self.public_key_
 
     @function
     async def bump(
@@ -182,11 +187,11 @@ class Melange:
             )
 
         if signing_key is None:
-            signing_key = self.keygen()
+            self.keygen()
 
         melange = melange.with_mounted_file(
             path="$MELANGE_SIGNING_KEY",
-            source=signing_key,
+            source=self.signing_key_,
             owner=self.user,
             expand=True,
         )
