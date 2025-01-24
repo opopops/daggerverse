@@ -41,9 +41,15 @@ class Melange:
             .with_env_variable("MELANGE_CACHE_DIR", "/tmp/cache")
             .with_env_variable("MELANGE_APK_CACHE_DIR", "/tmp/apk-cache")
             .with_env_variable("MELANGE_WORK_DIR", "/tmp/work")
-            .with_env_variable("MELANGE_SIGNING_KEY", "/tmp/melange.rsa")
-            .with_env_variable("MELANGE_OUTPUT_DIR", "/tmp/packages")
+            .with_env_variable("MELANGE_KEYRING_DIR", "/tmp/keyring")
+            .with_env_variable("MELANGE_SIGNING_KEY", "/tmp/keyring/melange.rsa")
+            .with_env_variable("MELANGE_OUTPUT_DIR", "/tmp/output")
             .with_env_variable("MELANGE_SRC_DIR", "/tmp/src")
+            .with_exec(
+                ["mkdir", "-p", "$MELANGE_KEYRING_DIR"],
+                use_entrypoint=False,
+                expand=True,
+            )
             .with_mounted_cache(
                 "$MELANGE_CACHE_DIR",
                 dag.cache_volume("MELANGE_CACHE"),
@@ -67,7 +73,7 @@ class Melange:
     def keygen(
         self,
         key_size: Annotated[int, Doc("the size of the prime to calculate ")] = 4096,
-    ) -> tuple[dagger.File]:
+    ) -> dagger.File:
         """Generate a key for package signing"""
         cmd = [
             "keygen",
@@ -84,7 +90,7 @@ class Melange:
             "$MELANGE_SIGNING_KEY.pub", expand=True
         )
 
-        return (self.private_key_, self.public_key_)
+        return self.private_key_
 
     @function
     def with_keygen(
@@ -94,6 +100,11 @@ class Melange:
         """Generate a key for package signing for chaining"""
         self.keygen(key_size=key_size)
         return self
+
+    @function
+    def keyring(self) -> dagger.Directory:
+        """Return keyring as a directory"""
+        return self.container().directory("$MELANGE_KEYRING_DIR", expand=True)
 
     @function
     async def bump(
