@@ -222,9 +222,15 @@ class Melange:
             use_entrypoint=True,
             expand=True,
         )
-        return self.container_.directory("$MELANGE_OUTPUT_DIR", expand=True).with_file(
-            "melange.rsa.pub", self.public_key_, permissions=0o644
+
+        output_dir: dagger.Directory = self.container_.directory(
+            "$MELANGE_OUTPUT_DIR", expand=True
         )
+        if self.public_key_:
+            return output_dir.with_file(
+                "melange.rsa.pub", self.public_key_, permissions=0o644
+            )
+        return output_dir
 
     @function
     async def with_build(
