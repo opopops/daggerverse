@@ -47,6 +47,10 @@ class Apko:
             .with_env_variable(
                 "APKO_OUTPUT_TAR", "${APKO_OUTPUT_DIR}/image.tar", expand=True
             )
+            .with_env_variable(
+                "APKO_KEYRING_FILE", "/tmp/keyring/melange.rsa.pub", expand=True
+            )
+            .with_env_variable("APKO_REPOSITORY_DIR", "/tmp/repository", expand=True)
             .with_mounted_cache(
                 "$APKO_CACHE_DIR",
                 dag.cache_volume("APKO_CACHE"),
@@ -93,6 +97,14 @@ class Apko:
         workdir: Annotated[dagger.Directory, Doc("Working dir"), Name("context")],
         config: Annotated[str, Doc("Config file")] = "apko.yaml",
         arch: Annotated[str, Doc("Architectures to build for")] | None = None,
+        keyring_append: Annotated[
+            dagger.File, Doc("Path to extra keys to include in the keyring")
+        ]
+        | None = None,
+        repository_append: Annotated[
+            dagger.Directory, Doc("Path to extra repositories to include")
+        ]
+        | None = None,
     ) -> Build:
         """Build an image using Apko"""
         apko = (
@@ -113,6 +125,24 @@ class Apko:
             "--sbom-path",
             "$APKO_OUTPUT_DIR",
         ]
+
+        if keyring_append:
+            apko = apko.with_mounted_file(
+                "$APKO_KEYRING_FILE",
+                source=keyring_append,
+                owner=self.user,
+                expand=True,
+            )
+            cmd.extend(["--keyring-append", "$APKO_KEYRING_FILE"])
+
+        if repository_append:
+            apko = apko.with_mounted_directory(
+                "$APKO_REPOSITORY_DIR",
+                source=repository_append,
+                owner=self.user,
+                expand=True,
+            )
+            cmd.extend(["--repository-append", "$APKO_REPOSITORY_DIR"])
 
         if arch:
             cmd.extend(["--arch", arch])
@@ -136,6 +166,14 @@ class Apko:
         arch: Annotated[str, Doc("Architectures to build for")] | None = None,
         local: Annotated[bool, Doc("Publish image just to local Docker daemon")]
         | None = False,
+        keyring_append: Annotated[
+            dagger.File, Doc("Path to extra keys to include in the keyring")
+        ]
+        | None = None,
+        repository_append: Annotated[
+            dagger.Directory, Doc("Path to extra repositories to include")
+        ]
+        | None = None,
     ) -> Image:
         """Publish an image using Apko"""
         apko = (
@@ -153,6 +191,24 @@ class Apko:
             "--cache-dir",
             "$APKO_CACHE_DIR",
         ]
+
+        if keyring_append:
+            apko = apko.with_mounted_file(
+                "$APKO_KEYRING_FILE",
+                source=keyring_append,
+                owner=self.user,
+                expand=True,
+            )
+            cmd.extend(["--keyring-append", "$APKO_KEYRING_FILE"])
+
+        if repository_append:
+            apko = apko.with_mounted_directory(
+                "$APKO_REPOSITORY_DIR",
+                source=repository_append,
+                owner=self.user,
+                expand=True,
+            )
+            cmd.extend(["--repository-append", "$APKO_REPOSITORY_DIR"])
 
         if sbom:
             cmd.extend(["--sbom=true", "--sbom-path", "$APKO_OUTPUT_DIR"])
