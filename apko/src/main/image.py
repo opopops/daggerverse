@@ -101,12 +101,30 @@ class Image:
     async def tag(self, tag: Annotated[str, Doc("Tag")]) -> str:
         """Tag image"""
         crane = await self.crane()
-        return await crane.tag(image=self.address, tag=tag)
+        result = await crane.tag(image=self.address, tag=tag)
+        self.address = tag
+        self.container_ = None
+        return result
 
     @function
     async def with_tag(self, tag: Annotated[str, Doc("Tag")]) -> Self:
         """Tag image (for chaining)"""
         await self.tag(tag=tag)
+        return self
+
+    @function
+    async def copy(self, target: Annotated[str, Doc("Target")]) -> str:
+        """Copy image to another registry"""
+        crane = await self.crane()
+        result = await crane.copy(source=self.address, target=target)
+        self.address = target
+        self.container_ = None
+        return result
+
+    @function
+    async def with_copy(self, target: Annotated[str, Doc("Target")]) -> Self:
+        """Copy image to another registry (for chaining)"""
+        await self.copy(target=target)
         return self
 
     @function
