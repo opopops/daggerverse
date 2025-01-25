@@ -188,6 +188,7 @@ class Melange:
 
         if signing_key:
             self.signing_key_ = signing_key
+            self.public_key_ = None
         else:
             if self.signing_key_ is None:
                 self.keygen()
