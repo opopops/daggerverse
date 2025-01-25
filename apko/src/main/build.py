@@ -58,7 +58,7 @@ class Build:
         return self.directory.wihtout_file("image.tar")
 
     @function
-    def as_directory(self) -> dagger.Directory:
+    def oci_dir(self) -> dagger.Directory:
         """Returns the image OCI layout directory"""
         return self.directory
 
