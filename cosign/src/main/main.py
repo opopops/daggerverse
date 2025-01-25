@@ -9,7 +9,7 @@ class Cosign:
     """Cosign CLI"""
 
     image: Annotated[str, Doc("Cosign image")] = field(
-        default="cgr.dev/chainguard/cosign:latest-dev"
+        default="cgr.dev/chainguard/wolfi-base:latest"
     )
     registry_username: Annotated[str, Doc("Registry username")] | None = field(
         default=None
@@ -34,7 +34,13 @@ class Cosign:
                 username=self.registry_username,
                 secret=self.registry_password,
             )
-        self.container_ = container.from_(address=self.image).with_user(self.user)
+        self.container_ = (
+            container.from_(address=self.image)
+            .with_user("0")
+            .with_exec(["apk", "add", "--no-cache", "cosign"])
+            .with_entrypoint(["/usr/bin/cosign"])
+            .with_user(self.user)
+        )
 
         return self.container_
 
