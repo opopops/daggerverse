@@ -127,7 +127,7 @@ class Grype:
     def scan_image(
         self,
         source: Annotated[str, Doc("Image to scan")],
-        scheme: Annotated[str, Doc("Source scheme")] | None = "registry",
+        source_type: Annotated[str, Doc("Source scheme")] | None = "registry",
         fail_on: (
             Annotated[
                 str,
@@ -143,7 +143,13 @@ class Grype:
         """Scan container image"""
         output_file = f"/tmp/report.{output_format}"
 
-        cmd = [f"{scheme}:{source}", "--output", output_format, "--file", output_file]
+        cmd = [
+            f"{source_type}:{source}",
+            "--output",
+            output_format,
+            "--file",
+            output_file,
+        ]
 
         if fail_on:
             cmd.extend(["--fail-on", fail_on])
@@ -156,7 +162,7 @@ class Grype:
     def with_scan_image(
         self,
         source: Annotated[str, Doc("Image to scan")],
-        scheme: Annotated[str, Doc("Source scheme")] | None = "registry",
+        source_type: Annotated[str, Doc("Source scheme")] | None = "registry",
         fail_on: (
             Annotated[
                 str,
@@ -171,7 +177,10 @@ class Grype:
     ) -> Self:
         """Scan container image (for chaining)"""
         self.scan_image(
-            source=source, scheme=scheme, fail_on=fail_on, output_format=output_format
+            source=source,
+            source_type=source_type,
+            fail_on=fail_on,
+            output_format=output_format,
         )
         return self
 
@@ -179,7 +188,7 @@ class Grype:
     def scan_directory(
         self,
         source: Annotated[dagger.Directory, Doc("Directory to scan")],
-        scheme: Annotated[str, Doc("Source scheme")] | None = "dir",
+        source_type: Annotated[str, Doc("Source scheme")] | None = "dir",
         fail_on: (
             Annotated[
                 str,
@@ -196,7 +205,7 @@ class Grype:
         output_file = f"/tmp/report.{output_format}"
 
         cmd = [
-            f"{scheme}:$GRYPE_DIR_TO_SCAN",
+            f"{source_type}:$GRYPE_DIR_TO_SCAN",
             "--output",
             output_format,
             "--file",
@@ -223,7 +232,7 @@ class Grype:
     def with_scan_directory(
         self,
         source: Annotated[dagger.Directory, Doc("Directory to scan")],
-        scheme: Annotated[str, Doc("Source scheme")] | None = "registry",
+        source_type: Annotated[str, Doc("Source scheme")] | None = "registry",
         fail_on: (
             Annotated[
                 str,
@@ -238,7 +247,10 @@ class Grype:
     ) -> Self:
         """Scan dir (for chaining)"""
         self.scan_directory(
-            source=source, scheme=scheme, fail_on=fail_on, output_format=output_format
+            source=source,
+            source_type=source_type,
+            fail_on=fail_on,
+            output_format=output_format,
         )
         return self
 
@@ -246,7 +258,7 @@ class Grype:
     def scan_file(
         self,
         source: Annotated[dagger.File, Doc("File to scan")],
-        scheme: Annotated[str, Doc("Source scheme")] | None = "file",
+        source_type: Annotated[str, Doc("Source scheme")] | None = "file",
         fail_on: (
             Annotated[
                 str,
@@ -263,7 +275,7 @@ class Grype:
         output_file = f"/tmp/report.{output_format}"
 
         cmd = [
-            f"{scheme}:$GRYPE_FILE_TO_SCAN",
+            f"{source_type}:$GRYPE_FILE_TO_SCAN",
             "--output",
             output_format,
             "--file",
@@ -287,7 +299,7 @@ class Grype:
     def with_scan_file(
         self,
         source: Annotated[dagger.File, Doc("File to scan")],
-        scheme: Annotated[str, Doc("Source scheme")] | None = "registry",
+        source_type: Annotated[str, Doc("Source scheme")] | None = "registry",
         fail_on: (
             Annotated[
                 str,
@@ -302,6 +314,9 @@ class Grype:
     ) -> Self:
         """Scan file (for chaining)"""
         self.scan_file(
-            source=source, scheme=scheme, fail_on=fail_on, output_format=output_format
+            source=source,
+            source_type=source_type,
+            fail_on=fail_on,
+            output_format=output_format,
         )
         return self
