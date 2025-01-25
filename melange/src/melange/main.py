@@ -7,7 +7,7 @@ from dagger import Doc, dag, function, field, object_type
 @object_type
 class Melange:
     image: Annotated[str, Doc("Melange image")] = field(
-        default="cgr.dev/chainguard/melange:latest-dev"
+        default="cgr.dev/chainguard/wolfi-base:latest"
     )
     registry_username: Annotated[str, Doc("Registry username")] | None = field(
         default=None
@@ -37,6 +37,9 @@ class Melange:
             )
         self.container_ = (
             container.from_(address=self.image)
+            .with_user("0")
+            .with_exec(["apk", "add", "--no-cache", "melange"])
+            .with_entrypoint(["/usr/bin/melange"])
             .with_user(self.user)
             .with_env_variable("MELANGE_CACHE_DIR", "/tmp/cache")
             .with_env_variable("MELANGE_APK_CACHE_DIR", "/tmp/apk-cache")

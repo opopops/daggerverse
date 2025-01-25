@@ -9,7 +9,7 @@ class Crane:
     """Crane module"""
 
     image: Annotated[str, Doc("Crane image")] = field(
-        default="cgr.dev/chainguard/crane:latest-dev"
+        default="cgr.dev/chainguard/wolfi-base:latest"
     )
     registry_username: Annotated[str, Doc("Registry username")] | None = field(
         default=None
@@ -34,7 +34,13 @@ class Crane:
                 username=self.registry_username,
                 secret=self.registry_password,
             )
-        self.container_ = container.from_(address=self.image).with_user(self.user)
+        self.container_ = (
+            container.from_(address=self.image)
+            .with_user("0")
+            .with_exec(["apk", "add", "--no-cache", "crane"])
+            .with_entrypoint(["/usr/bin/crane"])
+            .with_user(self.user)
+        )
 
         return self.container_
 
