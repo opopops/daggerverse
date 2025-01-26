@@ -83,13 +83,15 @@ class Image:
     @function
     async def ref(self) -> str:
         """Retrieves the fully qualified image ref"""
-        return await self.container().image_ref().strip()
+        ref = await self.container().image_ref()
+        return ref.strip()
 
     @function
     async def digest(self) -> str:
         """Retrieves the image digest"""
         crane = await self.crane()
-        return await crane.digest(image=self.address).strip()
+        digest = await crane.digest(image=self.address)
+        return digest.strip()
 
     @function
     async def registry(self) -> str:
