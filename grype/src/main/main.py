@@ -127,7 +127,7 @@ class Grype:
     def scan_image(
         self,
         source: Annotated[str, Doc("Image to scan")],
-        source_type: Annotated[str, Doc("Source scheme")] | None = "registry",
+        source_type: Annotated[str, Doc("Source type")] | None = "registry",
         fail_on: (
             Annotated[
                 str,
@@ -162,7 +162,7 @@ class Grype:
     def with_scan_image(
         self,
         source: Annotated[str, Doc("Image to scan")],
-        source_type: Annotated[str, Doc("Source scheme")] | None = "registry",
+        source_type: Annotated[str, Doc("Source type")] | None = "registry",
         fail_on: (
             Annotated[
                 str,
@@ -188,7 +188,7 @@ class Grype:
     def scan_directory(
         self,
         source: Annotated[dagger.Directory, Doc("Directory to scan")],
-        source_type: Annotated[str, Doc("Source scheme")] | None = "dir",
+        source_type: Annotated[str, Doc("Source type")] | None = "dir",
         fail_on: (
             Annotated[
                 str,
@@ -232,7 +232,7 @@ class Grype:
     def with_scan_directory(
         self,
         source: Annotated[dagger.Directory, Doc("Directory to scan")],
-        source_type: Annotated[str, Doc("Source scheme")] | None = "registry",
+        source_type: Annotated[str, Doc("Source type")] | None = "registry",
         fail_on: (
             Annotated[
                 str,
@@ -258,7 +258,7 @@ class Grype:
     def scan_file(
         self,
         source: Annotated[dagger.File, Doc("File to scan")],
-        source_type: Annotated[str, Doc("Source scheme")] | None = "file",
+        source_type: Annotated[str, Doc("Source type")] | None = "file",
         fail_on: (
             Annotated[
                 str,
@@ -299,7 +299,7 @@ class Grype:
     def with_scan_file(
         self,
         source: Annotated[dagger.File, Doc("File to scan")],
-        source_type: Annotated[str, Doc("Source scheme")] | None = "registry",
+        source_type: Annotated[str, Doc("Source type")] | None = "registry",
         fail_on: (
             Annotated[
                 str,

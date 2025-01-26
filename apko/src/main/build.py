@@ -81,7 +81,7 @@ class Build:
         grype = dag.grype()
         return grype.scan_directory(
             source=self.directory,
-            scheme="oci-dir",
+            source_type="oci-dir",
             fail_on=fail_on,
             output_format=output_format,
         )

@@ -96,7 +96,7 @@ class Build:
         grype = dag.grype()
         return grype.scan_file(
             source=await self.as_tarball(),
-            scheme="oci-archive",
+            source_type="oci-archive",
             fail_on=fail_on,
             output_format=output_format,
         )
