@@ -88,6 +88,9 @@ class Apko:
         self.container_ = container.with_secret_variable(
             "REGISTRY_PASSWORD", secret
         ).with_exec(cmd, use_entrypoint=False)
+        self.registry = address
+        self.username = username
+        self.password = secret
         return self
 
     @function
