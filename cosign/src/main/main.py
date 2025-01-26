@@ -70,7 +70,7 @@ class Cosign:
     @function
     async def sign(
         self,
-        digest: Annotated[str, Doc("Image digest")],
+        image: Annotated[str, Doc("Image digest URI")],
         private_key: Annotated[dagger.Secret, Doc("Cosign private key")],
         password: Annotated[dagger.Secret, Doc("Cosign password")],
         recursive: Annotated[
@@ -80,29 +80,13 @@ class Cosign:
             ),
         ]
         | None = False,
-        docker_config: Annotated[dagger.Directory, Doc("Docker config directory")]
-        | None = None,
-        registry_username: Annotated[str, Doc("Registry username")] | None = None,
-        registry_password: (
-            Annotated[dagger.Secret, Doc("Registry password")] | None
-        ) = None,
     ) -> str:
         """Sign image with Cosign"""
         container = self.container()
-        cmd = ["sign", digest, "--key", "env://COSIGN_PRIVATE_KEY"]
+        cmd = ["sign", image, "--key", "env://COSIGN_PRIVATE_KEY"]
 
         if recursive:
             cmd.append("--recursive")
-
-        if registry_username and registry_password:
-            container = container.with_registry_auth(
-                address=self.image, username=registry_username, secret=registry_password
-            )
-
-        if docker_config:
-            container = container.with_env_variable(
-                "DOCKER_CONFIG", "/tmp/docker"
-            ).with_mounted_directory("/tmp/docker", docker_config, owner=self.user)
 
         container = (
             container.with_env_variable("COSIGN_YES", "true")
@@ -112,3 +96,23 @@ class Cosign:
         )
 
         return await container.stdout()
+
+    @function
+    async def with_sign(
+        self,
+        image: Annotated[str, Doc("Image digest URI")],
+        private_key: Annotated[dagger.Secret, Doc("Cosign private key")],
+        password: Annotated[dagger.Secret, Doc("Cosign password")],
+        recursive: Annotated[
+            bool,
+            Doc(
+                "If a multi-arch image is specified, additionally sign each discrete image"
+            ),
+        ]
+        | None = False,
+    ) -> Self:
+        """Sign image with Cosign (For chaining)"""
+        await self.sign(
+            image=image, private_key=private_key, password=password, recursive=recursive
+        )
+        return self

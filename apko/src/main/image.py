@@ -182,7 +182,7 @@ class Image:
         """Sign image with Cosign"""
         cosign = await self.cosign()
         return await cosign.sign(
-            digest=await self.ref(),
+            image=await self.ref(),
             private_key=private_key,
             password=password,
             recursive=recursive,
