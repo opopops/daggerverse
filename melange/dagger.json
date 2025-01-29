@@ -1,5 +1,6 @@
 {
   "name": "melange",
-  "engineVersion": "v0.15.2",
-  "sdk": "python"
+  "engineVersion": "v0.15.3",
+  "sdk": "python",
+  "source": "."
 }

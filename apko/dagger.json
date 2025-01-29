@@ -1,6 +1,6 @@
 {
   "name": "apko",
-  "engineVersion": "v0.15.2",
+  "engineVersion": "v0.15.3",
   "sdk": "python",
   "dependencies": [
     {
