@@ -12,9 +12,11 @@ class Image:
 
     address: Annotated[str, Doc("Image address")]
 
-    username: Annotated[str, Doc("Registry username")] | None = field(default=None)
-    password: Annotated[dagger.Secret, Doc("Registry password")] | None = field(
+    registry_username: Annotated[str, Doc("Registry username")] | None = field(
         default=None
+    )
+    registry_password: Annotated[dagger.Secret, Doc("Registry password")] | None = (
+        field(default=None)
     )
 
     container_: dagger.Container | None = None
@@ -25,9 +27,11 @@ class Image:
         if self.container_:
             return self.container_
         container: dagger.Container = dag.container()
-        if self.username is not None and self.password is not None:
+        if self.registry_username is not None and self.registry_password is not None:
             container = container.with_registry_auth(
-                address=self.address, username=self.username, secret=self.password
+                address=self.address,
+                username=self.registry_username,
+                secret=self.registry_password,
             )
         self.container_ = container.from_(self.address)
         return self.container_
@@ -35,33 +39,33 @@ class Image:
     async def crane(self) -> dagger.Crane:
         """Returns authenticated crane"""
         crane: dagger.Crane = dag.crane()
-        if self.username is not None and self.password is not None:
+        if self.registry_username is not None and self.registry_password is not None:
             crane = crane.with_registry_auth(
                 address=await self.registry(),
-                username=self.username,
-                secret=self.password,
+                username=self.registry_username,
+                secret=self.registry_password,
             )
         return crane
 
     async def cosign(self) -> dagger.Cosign:
         """Returns authenticated cosign"""
         cosign: dagger.Cosign = dag.cosign()
-        if self.username is not None and self.password is not None:
+        if self.registry_username is not None and self.registry_password is not None:
             cosign = cosign.with_registry_auth(
                 address=await self.registry(),
-                username=self.username,
-                secret=self.password,
+                username=self.registry_username,
+                secret=self.registry_password,
             )
         return cosign
 
     async def grype(self) -> dagger.Grype:
         """Returns authenticated grype"""
         grype: dagger.Grype = dag.grype()
-        if self.username is not None and self.password is not None:
+        if self.registry_username is not None and self.registry_password is not None:
             grype = grype.with_registry_auth(
                 address=await self.registry(),
-                username=self.username,
-                secret=self.password,
+                username=self.registry_username,
+                secret=self.registry_password,
             )
         return grype
 

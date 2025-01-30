@@ -13,9 +13,11 @@ class Build:
     platform_variants: Annotated[list[dagger.Container], Doc("Platform variants build")]
 
     registry: Annotated[str, Doc("Registry host")] | None = field(default="docker.io")
-    username: Annotated[str, Doc("Registry username")] | None = field(default=None)
-    password: Annotated[dagger.Secret, Doc("Registry password")] | None = field(
+    registry_username: Annotated[str, Doc("Registry username")] | None = field(
         default=None
+    )
+    registry_password: Annotated[dagger.Secret, Doc("Registry password")] | None = (
+        field(default=None)
     )
 
     build_container_: dagger.Container | None = None
@@ -26,9 +28,11 @@ class Build:
         if self.build_container_:
             return self.build_container_
         container: dagger.Container = dag.container()
-        if self.username is not None and self.password is not None:
+        if self.registry_username is not None and self.registry_password is not None:
             container = container.with_registry_auth(
-                address=self.registry, username=self.username, secret=self.password
+                address=self.registry,
+                username=self.registry_username,
+                secret=self.registry_password,
             )
         self.build_container_ = container
         return self.build_container_
@@ -128,4 +132,8 @@ class Build:
         ref = await container.publish(
             address=image, platform_variants=self.platform_variants
         )
-        return Image(address=ref, username=self.username, password=self.password)
+        return Image(
+            address=ref,
+            username=self.registry_username,
+            password=self.registry_password,
+        )
