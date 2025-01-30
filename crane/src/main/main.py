@@ -11,6 +11,8 @@ class Crane:
     image: Annotated[str, Doc("Crane image")] = field(
         default="cgr.dev/chainguard/wolfi-base:latest"
     )
+    version: Annotated[str, Doc("Crane version")] | None = field(default=None)
+
     registry_username: Annotated[str, Doc("Registry username")] | None = field(
         default=None
     )
@@ -34,10 +36,15 @@ class Crane:
                 username=self.registry_username,
                 secret=self.registry_password,
             )
+
+        pkg = "crane"
+        if self.version:
+            pkg = f"{pkg}~{self.version}"
+
         self.container_ = (
             container.from_(address=self.image)
             .with_user("0")
-            .with_exec(["apk", "add", "--no-cache", "crane"])
+            .with_exec(["apk", "add", "--no-cache", pkg])
             .with_entrypoint(["/usr/bin/crane"])
             .with_user(self.user)
         )
