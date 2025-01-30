@@ -11,13 +11,15 @@ class Grype:
     image: Annotated[str, Doc("Grype image")] = field(
         default="cgr.dev/chainguard/wolfi-base:latest"
     )
+    version: Annotated[str, Doc("Grype version")] | None = field(default=None)
+    user: Annotated[str, Doc("Image user")] = field(default="nonroot")
+
     registry_username: Annotated[str, Doc("Registry username")] | None = field(
         default=None
     )
     registry_password: Annotated[dagger.Secret, Doc("Registry password")] | None = (
         field(default=None)
     )
-    user: Annotated[str, Doc("Image user")] = field(default="nonroot")
 
     container_: dagger.Container | None = None
 
@@ -35,10 +37,15 @@ class Grype:
                 username=self.registry_username,
                 secret=self.registry_password,
             )
+
+        pkg = "grype"
+        if self.version:
+            pkg = f"{pkg}~{self.version}"
+
         self.container_ = (
             container.from_(address=self.image)
             .with_user("0")
-            .with_exec(["apk", "add", "--no-cache", "grype", "docker-cli"])
+            .with_exec(["apk", "add", "--no-cache", "docker-cli", pkg])
             .with_entrypoint(["/usr/bin/grype"])
             .with_user(self.user)
             .with_env_variable("GRYPE_DB_CACHE_DIR", "/tmp/cache")

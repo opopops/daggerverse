@@ -11,13 +11,15 @@ class Cosign:
     image: Annotated[str, Doc("Cosign image")] = field(
         default="cgr.dev/chainguard/wolfi-base:latest"
     )
+    version: Annotated[str, Doc("Cosign version")] | None = field(default=None)
+    user: Annotated[str, Doc("Cosign image user")] = field(default="65532")
+
     registry_username: Annotated[str, Doc("Registry username")] | None = field(
         default=None
     )
     registry_password: Annotated[dagger.Secret, Doc("Registry password")] | None = (
         field(default=None)
     )
-    user: Annotated[str, Doc("Cosign image user")] = field(default="65532")
 
     container_: dagger.Container | None = None
 
@@ -34,10 +36,14 @@ class Cosign:
                 username=self.registry_username,
                 secret=self.registry_password,
             )
+        pkg = "cosign"
+        if self.version:
+            pkg = f"{pkg}~{self.version}"
+
         self.container_ = (
             container.from_(address=self.image)
             .with_user("0")
-            .with_exec(["apk", "add", "--no-cache", "cosign"])
+            .with_exec(["apk", "add", "--no-cache", pkg])
             .with_entrypoint(["/usr/bin/cosign"])
             .with_user(self.user)
         )

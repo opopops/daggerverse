@@ -12,13 +12,15 @@ class Helm:
     image: Annotated[str, Doc("Helm image")] = field(
         default="cgr.dev/chainguard/wolfi-base:latest"
     )
+    version: Annotated[str, Doc("Helm version")] | None = field(default=None)
+    user: Annotated[str, Doc("image user")] | None = field(default="65532")
+
     registry_username: Annotated[str, Doc("Registry username")] | None = field(
         default=None
     )
     registry_password: Annotated[dagger.Secret, Doc("Registry password")] | None = (
         field(default=None)
     )
-    user: Annotated[str, Doc("image user")] | None = field(default="65532")
 
     container_: dagger.Container | None = None
 
@@ -35,10 +37,15 @@ class Helm:
                 username=self.registry_username,
                 secret=self.registry_password,
             )
+
+        pkg = "helm"
+        if self.version:
+            pkg = f"{pkg}~{self.version}"
+
         self.container_ = (
             container.from_(address=self.image)
             .with_user("0")
-            .with_exec(["apk", "add", "--no-cache", "helm", "kubectl"])
+            .with_exec(["apk", "add", "--no-cache", "kubectl", pkg])
             .with_entrypoint(["/usr/bin/helm"])
             .with_user(self.user)
         )
