@@ -9,6 +9,7 @@ class Melange:
     image: Annotated[str, Doc("Melange image")] = field(
         default="cgr.dev/chainguard/wolfi-base:latest"
     )
+    version: Annotated[str, Doc("Melange version")] | None = field(default=None)
     registry_username: Annotated[str, Doc("Registry username")] | None = field(
         default=None
     )
@@ -35,6 +36,11 @@ class Melange:
                 username=self.registry_username,
                 secret=self.registry_password,
             )
+
+        pkg = "melange"
+        if self.version:
+            pkg = f"{pkg}~{self.version}"
+
         self.container_ = (
             container.from_(address=self.image)
             .with_user("0")
