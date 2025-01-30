@@ -134,6 +134,6 @@ class Build:
         )
         return Image(
             address=ref,
-            username=self.registry_username,
-            password=self.registry_password,
+            registry_username=self.registry_username,
+            registry_password=self.registry_password,
         )
