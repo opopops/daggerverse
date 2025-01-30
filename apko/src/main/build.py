@@ -1,6 +1,7 @@
 from typing import Annotated, Self
+from urllib.parse import urlparse
 import dagger
-from dagger import Doc, dag, function, field, object_type
+from dagger import Doc, dag, function, object_type
 
 from .image import Image
 
@@ -9,24 +10,27 @@ from .image import Image
 class Build:
     """Apko Build module"""
 
-    directory: Annotated[dagger.Directory, Doc("OCI directory")]
+    directory: Annotated[dagger.Directory, Doc("APKO OCI directory")]
+    tag: Annotated[str, Doc("Image tag")]
 
-    registry: Annotated[str, Doc("Registry host")] | None = field(
-        default="index.docker.io"
-    )
-    username: Annotated[str, Doc("Registry username")] | None = field(default=None)
-    password: Annotated[dagger.Secret, Doc("Registry password")] | None = field(
-        default=None
-    )
+    credentials_: list[tuple[str, str, dagger.Secret]] | None = None
+    crane_: dagger.Crane | None = None
+
+    def registry(self) -> str:
+        """Retrieves the registry host from tag"""
+        url = urlparse(f"//{self.tag}")
+        return url.netloc
 
     def crane(self) -> dagger.Crane:
         """Returns configured Crane"""
-        crane: dagger.Crane = dag.crane()
-        if self.username is not None and self.password is not None:
-            crane = crane.with_registry_auth(
-                address=self.registry, username=self.username, secret=self.password
+        if self.crane_:
+            return self.crane_
+        self.crane_: dagger.Crane = dag.crane()
+        for credential in self.credentials_ or []:
+            self.crane_ = self.crane_.with_registry_auth(
+                address=credential[0], username=credential[1], secret=credential[2]
             )
-        return crane
+        return self.crane_
 
     @function
     def sbom(self) -> dagger.Directory:
@@ -82,7 +86,21 @@ class Build:
         return self
 
     @function
-    async def publish(self, image: Annotated[list[str], Doc("Image tag")]) -> Image:
+    async def publish(
+        self,
+        registry_username: Annotated[str, Doc("Registry username")] | None = None,
+        registry_password: Annotated[dagger.Secret, Doc("Registry password")]
+        | None = None,
+    ) -> Image:
         """Publish multi-arch image"""
-        ref: str = await self.crane().push(path=self.directory, image=image, index=True)
-        return Image(address=ref, username=self.username, password=self.password)
+        if registry_username and registry_password:
+            if self.credentials_:
+                self.credentials_.append(
+                    (self.registry(), registry_username, registry_password)
+                )
+            else:
+                self.credentials_ = [
+                    (self.registry(), registry_username, registry_password)
+                ]
+        ref: str = await self.crane().push(path=self.directory, image=self.tag, index=True)
+        return Image(address=ref, credentials_=self.credentials_)

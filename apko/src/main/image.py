@@ -2,7 +2,7 @@ import json
 from typing import Annotated, Self
 from urllib.parse import urlparse
 import dagger
-from dagger import Doc, dag, function, field, object_type
+from dagger import Doc, dag, function, object_type
 
 
 @object_type
@@ -10,66 +10,65 @@ class Image:
     """Apko Image module"""
 
     address: Annotated[str, Doc("Image address")]
-
-    username: Annotated[str, Doc("Registry username")] | None = field(default=None)
-    password: Annotated[dagger.Secret, Doc("Registry password")] | None = field(
-        default=None
-    )
-
+    credentials_: list[tuple[str, str, dagger.Secret]] | None = None
     container_: dagger.Container | None = None
+
+    crane_: dagger.Crane | None = None
+    cosign_: dagger.Cosign | None = None
+    grype_: dagger.Grype | None = None
 
     @function
     def container(self, platform: dagger.Platform | None = None) -> dagger.Container:
-        """Returns authenticated container"""
+        """Returns image container"""
         if self.container_:
             return self.container_
 
         container: dagger.Container = dag.container(platform=platform)
-        if self.username is not None and self.password is not None:
+        for credential in self.credentials_ or []:
             container = container.with_registry_auth(
-                address=self.address, username=self.username, secret=self.password
+                address=credential[0], username=credential[1], secret=credential[2]
             )
         self.container_ = container.from_(self.address)
         return self.container_
 
-    async def crane(self) -> dagger.Crane:
-        """Returns authenticated crane"""
-        crane: dagger.Crane = dag.crane()
-        if self.username is not None and self.password is not None:
-            crane = crane.with_registry_auth(
-                address=await self.registry(),
-                username=self.username,
-                secret=self.password,
+    def crane(self) -> dagger.Crane:
+        """Returns crane"""
+        if self.crane_:
+            return self.crane_
+        self.crane_ = dag.crane()
+        for credential in self.credentials_ or []:
+            self.crane_ = self.crane_.with_registry_auth(
+                address=credential[0], username=credential[1], secret=credential[2]
             )
-        return crane
+        return self.crane_
 
-    async def cosign(self) -> dagger.Cosign:
-        """Returns authenticated cosign"""
-        cosign: dagger.Cosign = dag.cosign()
-        if self.username is not None and self.password is not None:
-            cosign = cosign.with_registry_auth(
-                address=await self.registry(),
-                username=self.username,
-                secret=self.password,
+    def cosign(self) -> dagger.Cosign:
+        """Returns cosign"""
+        if self.cosign_:
+            return self.cosign_
+        self.cosign_ = dag.cosign()
+        for credential in self.credentials_ or []:
+            self.cosign_ = self.cosign_.with_registry_auth(
+                address=credential[0], username=credential[1], secret=credential[2]
             )
-        return cosign
+        return self.cosign_
 
-    async def grype(self) -> dagger.Grype:
-        """Returns authenticated grype"""
-        grype: dagger.Grype = dag.grype()
-        if self.username is not None and self.password is not None:
-            grype = grype.with_registry_auth(
-                address=await self.registry(),
-                username=self.username,
-                secret=self.password,
+    def grype(self) -> dagger.Grype:
+        """Returns grype"""
+        if self.grype_:
+            return self.grype_
+        self.grype_ = dag.grype()
+        for credential in self.credentials_ or []:
+            self.grype_ = self.grype_.with_registry_auth(
+                address=credential[0], username=credential[1], secret=credential[2]
             )
-        return grype
+        return self.grype_
 
     @function
     async def platforms(self) -> list[dagger.Platform]:
         """Retrieves image platforms"""
         platforms: list[dagger.Platform] = []
-        crane = await self.crane()
+        crane = self.crane()
 
         manifest = json.loads(await crane.manifest(image=self.address))
 
@@ -89,7 +88,7 @@ class Image:
     @function
     async def digest(self) -> str:
         """Retrieves the image digest"""
-        crane = await self.crane()
+        crane = self.crane()
         digest = await crane.digest(image=self.address)
         return digest.strip()
 
@@ -102,7 +101,7 @@ class Image:
     @function
     async def tag(self, tag: Annotated[str, Doc("Tag")]) -> str:
         """Tag image"""
-        crane = await self.crane()
+        crane = self.crane()
         result = await crane.tag(image=self.address, tag=tag)
         self.address = tag
         self.container_ = None
@@ -117,7 +116,7 @@ class Image:
     @function
     async def copy(self, target: Annotated[str, Doc("Target")]) -> str:
         """Copy image to another registry"""
-        crane = await self.crane()
+        crane = self.crane()
         result = await crane.copy(source=self.address, target=target)
         self.address = target
         self.container_ = None
@@ -130,7 +129,7 @@ class Image:
         return self
 
     @function
-    async def scan(
+    def scan(
         self,
         fail_on: (
             Annotated[
@@ -145,13 +144,13 @@ class Image:
         output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
     ) -> dagger.File:
         """Scan image using Grype"""
-        grype = await self.grype()
+        grype = self.grype()
         return grype.scan_image(
             source=self.address, fail_on=fail_on, output_format=output_format
         )
 
     @function
-    async def with_scan(
+    def with_scan(
         self,
         fail_on: (
             Annotated[
@@ -166,7 +165,7 @@ class Image:
         output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
     ) -> Self:
         """Scan image using Grype (for chaining)"""
-        await self.scan(fail_on=fail_on, output_format=output_format)
+        self.scan(fail_on=fail_on, output_format=output_format)
         return self
 
     @function
@@ -182,7 +181,7 @@ class Image:
         ] = True,
     ) -> str:
         """Sign image with Cosign"""
-        cosign = await self.cosign()
+        cosign = self.cosign()
         return await cosign.sign(
             image=await self.ref(),
             private_key=private_key,
