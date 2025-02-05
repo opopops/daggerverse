@@ -1,5 +1,4 @@
 from typing import Annotated, Self
-import os
 import dagger
 from dagger import Doc, dag, function, field, object_type
 
@@ -51,7 +50,7 @@ class Grype:
             .with_env_variable("GRYPE_DB_CACHE_DIR", "/tmp/cache")
             .with_mounted_cache(
                 "$GRYPE_DB_CACHE_DIR",
-                dag.cache_volume("GRYPE_DB_CACHE"),
+                dag.cache_volume("grype-db-cache"),
                 sharing=dagger.CacheSharingMode("LOCKED"),
                 owner=self.user,
                 expand=True,
@@ -86,48 +85,62 @@ class Grype:
     def scan(
         self,
         source: Annotated[str, Doc("Source to scan")],
-        fail_on: (
+        severity_cutoff: (
             Annotated[
                 str,
                 Doc(
-                    """Set the return code to 1 if a vulnerability is found
-                    with a severity >= the given severity"""
+                    """Specify the minimum vulnerability severity to trigger an "error" level ACS result"""
                 ),
             ]
             | None
         ) = None,
+        fail: Annotated[
+            bool, Doc("Set to false to avoid failing based on severity-cutoff")
+        ] = True,
         output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
     ) -> dagger.File:
         """Scan"""
         output_file = f"/tmp/report.{output_format}"
+        expect = dagger.ReturnType.SUCCESS
+        if not fail:
+            expect = dagger.ReturnType.ANY
 
         cmd = [source, "--output", output_format, "--file", output_file]
 
-        if fail_on:
-            cmd.extend(["--fail-on", fail_on])
+        if severity_cutoff:
+            cmd.extend(["--fail-on", severity_cutoff])
 
         container: dagger.Container = self.container()
-        container = container.with_exec(cmd, use_entrypoint=True, expand=True)
+        container = container.with_exec(
+            cmd, use_entrypoint=True, expand=True, expect=expect
+        )
         return container.file(output_file)
 
     @function
     def with_scan(
         self,
         source: Annotated[str, Doc("Source to scan")],
-        fail_on: (
+        severity_cutoff: (
             Annotated[
                 str,
                 Doc(
-                    """Set the return code to 1 if a vulnerability is found
-                    with a severity >= the given severity"""
+                    """Specify the minimum vulnerability severity to trigger an "error" level ACS result"""
                 ),
             ]
             | None
         ) = None,
+        fail: Annotated[
+            bool, Doc("Set to false to avoid failing based on severity-cutoff")
+        ] = True,
         output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
     ) -> Self:
         """Scan (for chaining)"""
-        self.scan(source=source, fail_on=fail_on, output_format=output_format)
+        self.scan(
+            source=source,
+            severity_cutoff=severity_cutoff,
+            fail=fail,
+            output_format=output_format,
+        )
         return self
 
     @function
@@ -135,20 +148,25 @@ class Grype:
         self,
         source: Annotated[str, Doc("Image to scan")],
         source_type: Annotated[str, Doc("Source type")] | None = "registry",
-        fail_on: (
+        severity_cutoff: (
             Annotated[
                 str,
                 Doc(
-                    """Set the return code to 1 if a vulnerability is found
-                    with a severity >= the given severity"""
+                    """Specify the minimum vulnerability severity to trigger an "error" level ACS result"""
                 ),
             ]
             | None
         ) = None,
+        fail: Annotated[
+            bool, Doc("Set to false to avoid failing based on severity-cutoff")
+        ] = True,
         output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
     ) -> dagger.File:
         """Scan container image"""
         output_file = f"/tmp/report.{output_format}"
+        expect = dagger.ReturnType.SUCCESS
+        if not fail:
+            expect = dagger.ReturnType.ANY
 
         cmd = [
             f"{source_type}:{source}",
@@ -158,11 +176,13 @@ class Grype:
             output_file,
         ]
 
-        if fail_on:
-            cmd.extend(["--fail-on", fail_on])
+        if severity_cutoff:
+            cmd.extend(["--fail-on", severity_cutoff])
 
         container: dagger.Container = self.container()
-        container = container.with_exec(cmd, use_entrypoint=True, expand=True)
+        container = container.with_exec(
+            cmd, use_entrypoint=True, expand=True, expect=expect
+        )
         return container.file(output_file)
 
     @function
@@ -170,23 +190,26 @@ class Grype:
         self,
         source: Annotated[str, Doc("Image to scan")],
         source_type: Annotated[str, Doc("Source type")] | None = "registry",
-        fail_on: (
+        severity_cutoff: (
             Annotated[
                 str,
                 Doc(
-                    """Set the return code to 1 if a vulnerability is found
-                    with a severity >= the given severity"""
+                    """Specify the minimum vulnerability severity to trigger an "error" level ACS result"""
                 ),
             ]
             | None
         ) = None,
+        fail: Annotated[
+            bool, Doc("Set to false to avoid failing based on severity-cutoff")
+        ] = True,
         output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
     ) -> Self:
         """Scan container image (for chaining)"""
         self.scan_image(
             source=source,
             source_type=source_type,
-            fail_on=fail_on,
+            severity_cutoff=severity_cutoff,
+            fail=fail,
             output_format=output_format,
         )
         return self
@@ -196,20 +219,25 @@ class Grype:
         self,
         source: Annotated[dagger.Directory, Doc("Directory to scan")],
         source_type: Annotated[str, Doc("Source type")] | None = "dir",
-        fail_on: (
+        severity_cutoff: (
             Annotated[
                 str,
                 Doc(
-                    """Set the return code to 1 if a vulnerability is found
-                    with a severity >= the given severity"""
+                    """Specify the minimum vulnerability severity to trigger an "error" level ACS result"""
                 ),
             ]
             | None
         ) = None,
+        fail: Annotated[
+            bool, Doc("Set to false to avoid failing based on severity-cutoff")
+        ] = True,
         output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
     ) -> dagger.File:
         """Scan directory"""
         output_file = f"/tmp/report.{output_format}"
+        expect = dagger.ReturnType.SUCCESS
+        if not fail:
+            expect = dagger.ReturnType.ANY
 
         cmd = [
             f"{source_type}:$GRYPE_DIR_TO_SCAN",
@@ -219,8 +247,8 @@ class Grype:
             output_file,
         ]
 
-        if fail_on:
-            cmd.extend(["--fail-on", fail_on])
+        if severity_cutoff:
+            cmd.extend(["--fail-on", severity_cutoff])
 
         container: dagger.Container = (
             self.container()
@@ -231,7 +259,7 @@ class Grype:
                 owner=self.user,
                 expand=True,
             )
-            .with_exec(cmd, use_entrypoint=True, expand=True)
+            .with_exec(cmd, use_entrypoint=True, expand=True, expect=expect)
         )
         return container.file(output_file)
 
@@ -240,23 +268,26 @@ class Grype:
         self,
         source: Annotated[dagger.Directory, Doc("Directory to scan")],
         source_type: Annotated[str, Doc("Source type")] | None = "registry",
-        fail_on: (
+        severity_cutoff: (
             Annotated[
                 str,
                 Doc(
-                    """Set the return code to 1 if a vulnerability is found
-                    with a severity >= the given severity"""
+                    """Specify the minimum vulnerability severity to trigger an "error" level ACS result"""
                 ),
             ]
             | None
         ) = None,
+        fail: Annotated[
+            bool, Doc("Set to false to avoid failing based on severity-cutoff")
+        ] = True,
         output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
     ) -> Self:
         """Scan dir (for chaining)"""
         self.scan_directory(
             source=source,
             source_type=source_type,
-            fail_on=fail_on,
+            severity_cutoff=severity_cutoff,
+            fail=fail,
             output_format=output_format,
         )
         return self
@@ -266,20 +297,25 @@ class Grype:
         self,
         source: Annotated[dagger.File, Doc("File to scan")],
         source_type: Annotated[str, Doc("Source type")] | None = "file",
-        fail_on: (
+        severity_cutoff: (
             Annotated[
                 str,
                 Doc(
-                    """Set the return code to 1 if a vulnerability is found
-                    with a severity >= the given severity"""
+                    """Specify the minimum vulnerability severity to trigger an "error" level ACS result"""
                 ),
             ]
             | None
         ) = None,
+        fail: Annotated[
+            bool, Doc("Set to false to avoid failing based on severity-cutoff")
+        ] = True,
         output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
     ) -> dagger.File:
         """Scan file"""
         output_file = f"/tmp/report.{output_format}"
+        expect = dagger.ReturnType.SUCCESS
+        if not fail:
+            expect = dagger.ReturnType.ANY
 
         cmd = [
             f"{source_type}:$GRYPE_FILE_TO_SCAN",
@@ -289,8 +325,8 @@ class Grype:
             output_file,
         ]
 
-        if fail_on:
-            cmd.extend(["--fail-on", fail_on])
+        if severity_cutoff:
+            cmd.extend(["--fail-on", severity_cutoff])
 
         container: dagger.Container = (
             self.container()
@@ -298,7 +334,7 @@ class Grype:
             .with_file(
                 path="$GRYPE_FILE_TO_SCAN", source=source, owner=self.user, expand=True
             )
-            .with_exec(cmd, use_entrypoint=True, expand=True)
+            .with_exec(cmd, use_entrypoint=True, expand=True, expect=expect)
         )
         return container.file(output_file)
 
@@ -307,23 +343,26 @@ class Grype:
         self,
         source: Annotated[dagger.File, Doc("File to scan")],
         source_type: Annotated[str, Doc("Source type")] | None = "registry",
-        fail_on: (
+        severity_cutoff: (
             Annotated[
                 str,
                 Doc(
-                    """Set the return code to 1 if a vulnerability is found
-                    with a severity >= the given severity"""
+                    """Specify the minimum vulnerability severity to trigger an "error" level ACS result"""
                 ),
             ]
             | None
         ) = None,
+        fail: Annotated[
+            bool, Doc("Set to false to avoid failing based on severity-cutoff")
+        ] = True,
         output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
     ) -> Self:
         """Scan file (for chaining)"""
         self.scan_file(
             source=source,
             source_type=source_type,
-            fail_on=fail_on,
+            severity_cutoff=severity_cutoff,
+            fail=fail,
             output_format=output_format,
         )
         return self
