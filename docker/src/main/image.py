@@ -116,41 +116,50 @@ class Image:
     @function
     async def scan(
         self,
-        fail_on: (
+        severity_cutoff: (
             Annotated[
                 str,
                 Doc(
-                    """Set the return code to 1 if a vulnerability is found
-                    with a severity >= the given severity"""
+                    """Specify the minimum vulnerability severity to trigger an "error" level ACS result"""
                 ),
             ]
             | None
         ) = None,
+        fail: Annotated[
+            bool, Doc("Set to false to avoid failing based on severity-cutoff")
+        ] = True,
         output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
     ) -> dagger.File:
         """Scan image using Grype"""
         grype = await self.grype()
         return grype.scan_image(
-            source=self.address, fail_on=fail_on, output_format=output_format
+            source=self.address,
+            severity_cutoff=severity_cutoff,
+            fail=fail,
+            output_format=output_format,
         )
 
     @function
     async def with_scan(
         self,
-        fail_on: (
+        severity_cutoff: (
             Annotated[
                 str,
                 Doc(
-                    """Set the return code to 1 if a vulnerability is found
-                    with a severity >= the given severity"""
+                    """Specify the minimum vulnerability severity to trigger an "error" level ACS result"""
                 ),
             ]
             | None
         ) = None,
+        fail: Annotated[
+            bool, Doc("Set to false to avoid failing based on severity-cutoff")
+        ] = True,
         output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
     ) -> Self:
         """Scan image using Grype (for chaining)"""
-        await self.scan(fail_on=fail_on, output_format=output_format)
+        await self.scan(
+            severity_cutoff=severity_cutoff, fail=fail, output_format=output_format
+        )
         return self
 
     @function

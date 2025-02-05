@@ -45,16 +45,18 @@ class Build:
     @function
     def scan(
         self,
-        fail_on: (
+        severity_cutoff: (
             Annotated[
                 str,
                 Doc(
-                    """Set the return code to 1 if a vulnerability is found
-                    with a severity >= the given severity"""
+                    """Specify the minimum vulnerability severity to trigger an "error" level ACS result"""
                 ),
             ]
             | None
         ) = None,
+        fail: Annotated[
+            bool, Doc("Set to false to avoid failing based on severity-cutoff")
+        ] = True,
         output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
     ) -> dagger.File:
         """Scan build result using Grype"""
@@ -62,27 +64,32 @@ class Build:
         return grype.scan_directory(
             source=self.directory,
             source_type="oci-dir",
-            fail_on=fail_on,
+            severity_cutoff=severity_cutoff,
+            fail=fail,
             output_format=output_format,
         )
 
     @function
     def with_scan(
         self,
-        fail_on: (
+        severity_cutoff: (
             Annotated[
                 str,
                 Doc(
-                    """Set the return code to 1 if a vulnerability is found
-                    with a severity >= the given severity"""
+                    """Specify the minimum vulnerability severity to trigger an "error" level ACS result"""
                 ),
             ]
             | None
         ) = None,
+        fail: Annotated[
+            bool, Doc("Set to false to avoid failing based on severity-cutoff")
+        ] = True,
         output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
     ) -> Self:
         """Scan build result using Grype (for chaining)"""
-        self.scan(fail_on=fail_on, output_format=output_format)
+        self.scan(
+            severity_cutoff=severity_cutoff, fail=fail, output_format=output_format
+        )
         return self
 
     @function
@@ -102,5 +109,7 @@ class Build:
                 self.credentials_ = [
                     (self.registry(), registry_username, registry_password)
                 ]
-        ref: str = await self.crane().push(path=self.directory, image=self.tag, index=True)
+        ref: str = await self.crane().push(
+            path=self.directory, image=self.tag, index=True
+        )
         return Image(address=ref, credentials_=self.credentials_)
