@@ -185,7 +185,7 @@ class Apko:
         self,
         workdir: Annotated[dagger.Directory, Doc("Working dir"), Name("context")],
         config: Annotated[dagger.File, Doc("Config file")],
-        tag: Annotated[str, Doc("Image tag")],
+        tags: Annotated[list[str], Doc("Image tags"), Name("tag")],
         sbom: Annotated[bool, Doc("generate an SBOM")] | None = True,
         arch: Annotated[str, Doc("Architectures to build for")] | None = None,
         local: Annotated[bool, Doc("Publish image just to local Docker daemon")]
@@ -219,7 +219,7 @@ class Apko:
         cmd = [
             "publish",
             os.path.join("$APKO_CONFIG_DIR", config_name),
-            tag,
+            " ".join(tags),
             "--cache-dir",
             "$APKO_CACHE_DIR",
         ]
