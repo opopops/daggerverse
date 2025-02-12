@@ -216,13 +216,10 @@ class Apko:
             .with_workdir("$APKO_WORK_DIR", expand=True)
         )
 
-        cmd = [
-            "publish",
-            os.path.join("$APKO_CONFIG_DIR", config_name),
-            " ".join(tags),
-            "--cache-dir",
-            "$APKO_CACHE_DIR",
-        ]
+        cmd = ["publish", os.path.join("$APKO_CONFIG_DIR", config_name)]
+
+        cmd.extend(tags)
+        cmd.extend(["--cache-dir", "$APKO_CACHE_DIR"])
 
         if keyring_append:
             apko = apko.with_mounted_file(
