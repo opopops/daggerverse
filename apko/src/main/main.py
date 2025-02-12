@@ -251,4 +251,4 @@ class Apko:
             cmd.append("--local")
 
         await apko.with_exec(cmd, use_entrypoint=True, expand=True)
-        return Image(address=tag, credentials_=self.credentials_)
+        return Image(address=tags[0], credentials_=self.credentials_)
