@@ -165,36 +165,58 @@ class Image:
     @function
     async def sign(
         self,
-        private_key: Annotated[dagger.Secret, Doc("Cosign private key")],
-        password: Annotated[dagger.Secret, Doc("Cosign password")],
+        private_key: Annotated[dagger.Secret, Doc("Cosign private key")] | None = None,
+        password: Annotated[dagger.Secret, Doc("Cosign password")] | None = None,
+        oidc_provider: Annotated[
+            str, Doc("Specify the provider to get the OIDC token from")
+        ]
+        | None = None,
+        oidc_issuer: Annotated[str, Doc("OIDC provider to be used to issue ID toke")]
+        | None = None,
         recursive: Annotated[
             bool,
             Doc(
                 "If a multi-arch image is specified, additionally sign each discrete image"
             ),
-        ] = True,
+        ]
+        | None = True,
     ) -> str:
         """Sign image with Cosign"""
-        cosign = await self.cosign()
+        cosign = self.cosign()
         return await cosign.sign(
             image=await self.ref(),
             private_key=private_key,
             password=password,
+            oidc_provider=oidc_provider,
+            oidc_issuer=oidc_issuer,
             recursive=recursive,
         )
 
     @function
     async def with_sign(
         self,
-        private_key: Annotated[dagger.Secret, Doc("Cosign private key")],
-        password: Annotated[dagger.Secret, Doc("Cosign password")],
+        private_key: Annotated[dagger.Secret, Doc("Cosign private key")] | None = None,
+        password: Annotated[dagger.Secret, Doc("Cosign password")] | None = None,
+        oidc_provider: Annotated[
+            str, Doc("Specify the provider to get the OIDC token from")
+        ]
+        | None = None,
+        oidc_issuer: Annotated[str, Doc("OIDC provider to be used to issue ID toke")]
+        | None = None,
         recursive: Annotated[
             bool,
             Doc(
                 "If a multi-arch image is specified, additionally sign each discrete image"
             ),
-        ] = False,
+        ]
+        | None = True,
     ) -> Self:
         """Sign image with Cosign (for chaining)"""
-        await self.sign(private_key=private_key, password=password, recursive=recursive)
+        await self.sign(
+            private_key=private_key,
+            password=password,
+            oidc_provider=oidc_provider,
+            oidc_issuer=oidc_issuer,
+            recursive=recursive,
+        )
         return self

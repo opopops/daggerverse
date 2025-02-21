@@ -1,7 +1,7 @@
 from typing import Annotated, Self
 
 import dagger
-from dagger import Doc, dag, function, field, object_type
+from dagger import Doc, Name, dag, function, field, object_type
 
 
 @object_type
@@ -77,8 +77,14 @@ class Cosign:
     async def sign(
         self,
         image: Annotated[str, Doc("Image digest URI")],
-        private_key: Annotated[dagger.Secret, Doc("Cosign private key")],
-        password: Annotated[dagger.Secret, Doc("Cosign password")],
+        private_key: Annotated[dagger.Secret, Doc("Cosign private key")] | None = None,
+        password: Annotated[dagger.Secret, Doc("Cosign password")] | None = None,
+        oidc_provider: Annotated[
+            str, Doc("Specify the provider to get the OIDC token from")
+        ]
+        | None = None,
+        oidc_issuer: Annotated[str, Doc("OIDC provider to be used to issue ID toke")]
+        | None = None,
         recursive: Annotated[
             bool,
             Doc(
@@ -89,7 +95,16 @@ class Cosign:
     ) -> str:
         """Sign image with Cosign"""
         container = self.container()
-        cmd = ["sign", image, "--key", "env://COSIGN_PRIVATE_KEY"]
+        cmd = ["sign", image]
+
+        if private_key:
+            cmd.extend(["--key", "env://COSIGN_PRIVATE_KEY"])
+
+        if oidc_provider:
+            cmd.extend(["--oidc-provider", oidc_provider])
+
+        if oidc_issuer:
+            cmd.extend(["--oidc-issuer", oidc_issuer])
 
         if recursive:
             cmd.append("--recursive")
@@ -107,8 +122,14 @@ class Cosign:
     async def with_sign(
         self,
         image: Annotated[str, Doc("Image digest URI")],
-        private_key: Annotated[dagger.Secret, Doc("Cosign private key")],
-        password: Annotated[dagger.Secret, Doc("Cosign password")],
+        private_key: Annotated[dagger.Secret, Doc("Cosign private key")] | None = None,
+        password: Annotated[dagger.Secret, Doc("Cosign password")] | None = None,
+        oidc_provider: Annotated[
+            str, Doc("Specify the provider to get the OIDC token from")
+        ]
+        | None = None,
+        oidc_issuer: Annotated[str, Doc("OIDC provider to be used to issue ID toke")]
+        | None = None,
         recursive: Annotated[
             bool,
             Doc(
@@ -119,6 +140,101 @@ class Cosign:
     ) -> Self:
         """Sign image with Cosign (For chaining)"""
         await self.sign(
-            image=image, private_key=private_key, password=password, recursive=recursive
+            image=image,
+            private_key=private_key,
+            password=password,
+            oidc_provider=oidc_provider,
+            oidc_issuer=oidc_issuer,
+            recursive=recursive,
+        )
+        return self
+
+    @function
+    async def attest(
+        self,
+        image: Annotated[str, Doc("Image digest URI")],
+        private_key: Annotated[dagger.Secret, Doc("Cosign private key")] | None = None,
+        password: Annotated[dagger.Secret, Doc("Cosign password")] | None = None,
+        type_: Annotated[str, Doc("Specify a predicate type"), Name("type")]
+        | None = None,
+        predicate: Annotated[str, Doc("Cosign password")] | None = None,
+        oidc_provider: Annotated[
+            str, Doc("Specify the provider to get the OIDC token from")
+        ]
+        | None = None,
+        oidc_issuer: Annotated[str, Doc("OIDC provider to be used to issue ID toke")]
+        | None = None,
+        recursive: Annotated[
+            bool,
+            Doc(
+                "If a multi-arch image is specified, additionally sign each discrete image"
+            ),
+        ]
+        | None = False,
+    ) -> str:
+        """Attest image with Cosign"""
+        container = self.container()
+        cmd = ["attest", image]
+
+        if private_key:
+            cmd.extend(["--key", "env://COSIGN_PRIVATE_KEY"])
+
+        if type_:
+            cmd.extend(["--type", type_])
+
+        if predicate:
+            cmd.extend(["--predicate", predicate])
+
+        if oidc_provider:
+            cmd.extend(["--oidc-provider", oidc_provider])
+
+        if oidc_issuer:
+            cmd.extend(["--oidc-issuer", oidc_issuer])
+
+        if recursive:
+            cmd.append("--recursive")
+
+        container = (
+            container.with_env_variable("COSIGN_YES", "true")
+            .with_secret_variable("COSIGN_PASSWORD", password)
+            .with_secret_variable("COSIGN_PRIVATE_KEY", private_key)
+            .with_exec(cmd, use_entrypoint=True, expand=True)
+        )
+
+        return await container.stdout()
+
+    @function
+    async def with_attest(
+        self,
+        image: Annotated[str, Doc("Image digest URI")],
+        private_key: Annotated[dagger.Secret, Doc("Cosign private key")] | None = None,
+        password: Annotated[dagger.Secret, Doc("Cosign password")] | None = None,
+        type_: Annotated[str, Doc("Specify a predicate type"), Name("type")]
+        | None = None,
+        predicate: Annotated[str, Doc("Cosign password")] | None = None,
+        oidc_provider: Annotated[
+            str, Doc("Specify the provider to get the OIDC token from")
+        ]
+        | None = None,
+        oidc_issuer: Annotated[str, Doc("OIDC provider to be used to issue ID toke")]
+        | None = None,
+        recursive: Annotated[
+            bool,
+            Doc(
+                "If a multi-arch image is specified, additionally sign each discrete image"
+            ),
+        ]
+        | None = False,
+    ) -> Self:
+        """Attest image with Cosign (For chaining)"""
+        await self.attest(
+            image=image,
+            private_key=private_key,
+            password=password,
+            type_=type_,
+            predicate=predicate,
+            oidc_provider=oidc_provider,
+            oidc_issuer=oidc_issuer,
+            recursive=recursive,
         )
         return self

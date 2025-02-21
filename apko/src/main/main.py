@@ -59,7 +59,7 @@ class Apko:
             .with_env_variable("APKO_CACHE_DIR", "/tmp/cache", expand=True)
             .with_env_variable("APKO_CONFIG_DIR", "/tmp/config", expand=True)
             .with_env_variable("APKO_WORK_DIR", "/tmp/work", expand=True)
-            .with_env_variable("APKO_OUTPUT_DIR", "/tmp/outout", expand=True)
+            .with_env_variable("APKO_OUTPUT_DIR", "/tmp/output", expand=True)
             .with_env_variable(
                 "APKO_OUTPUT_TAR", "${APKO_OUTPUT_DIR}/image.tar", expand=True
             )
