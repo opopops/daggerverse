@@ -153,11 +153,11 @@ class Cosign:
     async def attest(
         self,
         image: Annotated[str, Doc("Image digest URI")],
+        predicate: Annotated[dagger.File, Doc("path to the predicate file")],
         private_key: Annotated[dagger.Secret, Doc("Cosign private key")] | None = None,
         password: Annotated[dagger.Secret, Doc("Cosign password")] | None = None,
         type_: Annotated[str, Doc("Specify a predicate type"), Name("type")]
         | None = None,
-        predicate: Annotated[str, Doc("Cosign password")] | None = None,
         oidc_provider: Annotated[
             str, Doc("Specify the provider to get the OIDC token from")
         ]
@@ -173,7 +173,15 @@ class Cosign:
         | None = False,
     ) -> str:
         """Attest image with Cosign"""
-        container = self.container()
+        predicate_name = await predicate.name()
+
+        container = self.container().with_mounted_file(
+            path=f"/tmp/{predicate_name}",
+            source=predicate,
+            owner=self.user,
+            expand=True,
+        )
+
         cmd = ["attest", image]
 
         if private_key:
@@ -183,7 +191,7 @@ class Cosign:
             cmd.extend(["--type", type_])
 
         if predicate:
-            cmd.extend(["--predicate", predicate])
+            cmd.extend(["--predicate", f"/tmp/{predicate_name}"])
 
         if oidc_provider:
             cmd.extend(["--oidc-provider", oidc_provider])
@@ -207,11 +215,11 @@ class Cosign:
     async def with_attest(
         self,
         image: Annotated[str, Doc("Image digest URI")],
+        predicate: Annotated[dagger.File, Doc("path to the predicate file")],
         private_key: Annotated[dagger.Secret, Doc("Cosign private key")] | None = None,
         password: Annotated[dagger.Secret, Doc("Cosign password")] | None = None,
         type_: Annotated[str, Doc("Specify a predicate type"), Name("type")]
         | None = None,
-        predicate: Annotated[str, Doc("Cosign password")] | None = None,
         oidc_provider: Annotated[
             str, Doc("Specify the provider to get the OIDC token from")
         ]
