@@ -60,6 +60,7 @@ class Apko:
             .with_env_variable("APKO_CONFIG_DIR", "/tmp/config", expand=True)
             .with_env_variable("APKO_WORK_DIR", "/tmp/work", expand=True)
             .with_env_variable("APKO_OUTPUT_DIR", "/tmp/output", expand=True)
+            .with_env_variable("APKO_SBOM_DIR", "/tmp/sbom", expand=True)
             .with_env_variable(
                 "APKO_OUTPUT_TAR", "${APKO_OUTPUT_DIR}/image.tar", expand=True
             )
@@ -76,6 +77,9 @@ class Apko:
             )
             .with_exec(
                 ["mkdir", "-p", "$APKO_OUTPUT_DIR"], use_entrypoint=False, expand=True
+            )
+            .with_exec(
+                ["mkdir", "-p", "$APKO_SBOM_DIR"], use_entrypoint=False, expand=True
             )
         )
         return self.container_
@@ -148,7 +152,7 @@ class Apko:
             "--cache-dir",
             "$APKO_CACHE_DIR",
             "--sbom-path",
-            "$APKO_OUTPUT_DIR",
+            "$APKO_SBOM_DIR",
         ]
 
         if keyring_append:
@@ -173,8 +177,11 @@ class Apko:
             cmd.extend(["--arch", arch])
 
         return Build(
-            directory=apko.with_exec(cmd, use_entrypoint=True, expand=True).directory(
+            oci=apko.with_exec(cmd, use_entrypoint=True, expand=True).directory(
                 "$APKO_OUTPUT_DIR", expand=True
+            ),
+            sbom=apko.with_exec(cmd, use_entrypoint=True, expand=True).directory(
+                "$APKO_SBOM_DIR", expand=True
             ),
             tag=tag,
             credentials_=self.credentials_,
@@ -240,7 +247,7 @@ class Apko:
             cmd.extend(["--repository-append", "$APKO_REPOSITORY_DIR"])
 
         if sbom:
-            cmd.extend(["--sbom=true", "--sbom-path", "$APKO_OUTPUT_DIR"])
+            cmd.extend(["--sbom=true", "--sbom-path", "$APKO_SBOM_DIR"])
         else:
             cmd.append("--sbom=false")
 
@@ -251,4 +258,10 @@ class Apko:
             cmd.append("--local")
 
         await apko.with_exec(cmd, use_entrypoint=True, expand=True)
-        return Image(address=tags[0], credentials_=self.credentials_)
+        return Image(
+            address=tags[0],
+            sbom=apko.with_exec(cmd, use_entrypoint=True, expand=True).directory(
+                "$APKO_SBOM_DIR", expand=True
+            ),
+            credentials_=self.credentials_,
+        )

@@ -10,7 +10,8 @@ from .image import Image
 class Build:
     """Apko Build module"""
 
-    directory: Annotated[dagger.Directory, Doc("APKO OCI directory")]
+    oci: Annotated[dagger.Directory, Doc("OCI directory")]
+    sbom: Annotated[dagger.Directory, Doc("SBOM directory")]
     tag: Annotated[str, Doc("Image tag")]
 
     credentials_: list[tuple[str, str, dagger.Secret]] | None = None
@@ -33,16 +34,6 @@ class Build:
         return self.crane_
 
     @function
-    def sbom(self) -> dagger.Directory:
-        """Returns SBOM"""
-        return self.directory.wihtout_file("image.tar")
-
-    @function
-    def oci_dir(self) -> dagger.Directory:
-        """Returns the image OCI layout directory"""
-        return self.directory
-
-    @function
     def scan(
         self,
         severity_cutoff: (
@@ -62,7 +53,7 @@ class Build:
         """Scan build result using Grype"""
         grype = dag.grype()
         return grype.scan_directory(
-            source=self.directory,
+            source=self.oci,
             source_type="oci-dir",
             severity_cutoff=severity_cutoff,
             fail=fail,
@@ -109,7 +100,5 @@ class Build:
                 self.credentials_ = [
                     (self.registry(), registry_username, registry_password)
                 ]
-        ref: str = await self.crane().push(
-            path=self.directory, image=self.tag, index=True
-        )
+        ref: str = await self.crane().push(path=self.oci, image=self.tag, index=True)
         return Image(address=ref, credentials_=self.credentials_)

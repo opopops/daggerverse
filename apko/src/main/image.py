@@ -10,6 +10,8 @@ class Image:
     """Apko Image module"""
 
     address: Annotated[str, Doc("Image address")]
+    sbom: Annotated[dagger.Directory, Doc("SBOM directory")]
+
     credentials_: list[tuple[str, str, dagger.Secret]] | None = None
     container_: dagger.Container | None = None
 
