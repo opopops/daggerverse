@@ -1,7 +1,7 @@
 from typing import Annotated, Self
 from urllib.parse import urlparse
 import dagger
-from dagger import Doc, dag, function, object_type
+from dagger import Doc, Name, dag, function, object_type
 
 from .image import Image
 
@@ -32,6 +32,15 @@ class Build:
                 address=credential[0], username=credential[1], secret=credential[2]
             )
         return self.crane_
+
+    @function
+    def build(self) -> dagger.Directory:
+        """Returns the build directory"""
+        return (
+            dag.directory()
+            .with_directory("oci", self.oci)
+            .with_directory("sbom", self.sbom)
+        )
 
     @function
     def scan(
@@ -86,6 +95,7 @@ class Build:
     @function
     async def publish(
         self,
+        tags: Annotated[list[str], Doc("Additional tags"), Name("tag")] = (),
         registry_username: Annotated[str, Doc("Registry username")] | None = None,
         registry_password: Annotated[dagger.Secret, Doc("Registry password")]
         | None = None,
@@ -100,5 +110,8 @@ class Build:
                 self.credentials_ = [
                     (self.registry(), registry_username, registry_password)
                 ]
-        ref: str = await self.crane().push(path=self.oci, image=self.tag, index=True)
-        return Image(address=ref, credentials_=self.credentials_)
+        await self.crane().push(path=self.oci, image=self.tag, index=True)
+        # additionnal tags
+        for tag in tags:
+            await self.crane().copy(source=self.tag, target=tag)
+        return Image(address=self.tag, sbom=self.sbom, credentials_=self.credentials_)
