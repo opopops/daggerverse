@@ -99,6 +99,9 @@ class Cosign:
 
         if private_key:
             cmd.extend(["--key", "env://COSIGN_PRIVATE_KEY"])
+            container = container.with_secret_variable(
+                "COSIGN_PASSWORD", password
+            ).with_secret_variable("COSIGN_PRIVATE_KEY", private_key)
 
         if oidc_provider:
             cmd.extend(["--oidc-provider", oidc_provider])
@@ -109,11 +112,8 @@ class Cosign:
         if recursive:
             cmd.append("--recursive")
 
-        container = (
-            container.with_env_variable("COSIGN_YES", "true")
-            .with_secret_variable("COSIGN_PASSWORD", password)
-            .with_secret_variable("COSIGN_PRIVATE_KEY", private_key)
-            .with_exec(cmd, use_entrypoint=True, expand=True)
+        container = container.with_env_variable("COSIGN_YES", "true").with_exec(
+            cmd, use_entrypoint=True, expand=True
         )
 
         return await container.stdout()
@@ -186,6 +186,9 @@ class Cosign:
 
         if private_key:
             cmd.extend(["--key", "env://COSIGN_PRIVATE_KEY"])
+            container = container.with_secret_variable(
+                "COSIGN_PASSWORD", password
+            ).with_secret_variable("COSIGN_PRIVATE_KEY", private_key)
 
         if type_:
             cmd.extend(["--type", type_])
@@ -202,11 +205,8 @@ class Cosign:
         if recursive:
             cmd.append("--recursive")
 
-        container = (
-            container.with_env_variable("COSIGN_YES", "true")
-            .with_secret_variable("COSIGN_PASSWORD", password)
-            .with_secret_variable("COSIGN_PRIVATE_KEY", private_key)
-            .with_exec(cmd, use_entrypoint=True, expand=True)
+        container = container.with_env_variable("COSIGN_YES", "true").with_exec(
+            cmd, use_entrypoint=True, expand=True
         )
 
         return await container.stdout()
