@@ -34,6 +34,16 @@ class Build:
         return self.crane_
 
     @function
+    def oci_dir(self) -> dagger.Directory:
+        """Returns the OCI directory"""
+        return self.oci
+
+    @function
+    def sbom_dir(self) -> dagger.Directory:
+        """Returns the SBOM directory"""
+        return self.sbom
+
+    @function
     def build_dir(self) -> dagger.Directory:
         """Returns the build directory"""
         return (

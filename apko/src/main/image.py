@@ -82,6 +82,11 @@ class Image:
         return platforms
 
     @function
+    def sbom_dir(self) -> dagger.Directory:
+        """Returns the SBOM directory"""
+        return self.sbom
+
+    @function
     async def ref(self) -> str:
         """Retrieves the fully qualified image ref"""
         ref = await self.container().image_ref()
