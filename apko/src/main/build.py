@@ -34,7 +34,7 @@ class Build:
         return self.crane_
 
     @function
-    def build(self) -> dagger.Directory:
+    def build_dir(self) -> dagger.Directory:
         """Returns the build directory"""
         return (
             dag.directory()
