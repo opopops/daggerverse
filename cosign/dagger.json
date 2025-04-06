@@ -1,6 +1,7 @@
 {
   "name": "cosign",
-  "engineVersion": "v0.15.3",
-  "sdk": "python",
-  "source": "."
+  "engineVersion": "v0.18.2",
+  "sdk": {
+    "source": "python"
+  }
 }
