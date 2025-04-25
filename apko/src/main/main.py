@@ -29,6 +29,7 @@ class Apko:
         url = urlparse(f"//{self.image}")
         return url.netloc
 
+    @function
     def container(self) -> dagger.Container:
         """Returns configured apko container"""
         if self.container_:
