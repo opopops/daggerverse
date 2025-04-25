@@ -12,12 +12,8 @@ class Crane:
         default="cgr.dev/chainguard/wolfi-base:latest"
     )
     version: Annotated[str, Doc("Crane version")] | None = field(default=None)
-
-    registry_username: Annotated[str, Doc("Registry username")] | None = field(
+    docker_config: Annotated[dagger.File, Doc("Docker config file")] | None = field(
         default=None
-    )
-    registry_password: Annotated[dagger.Secret, Doc("Registry password")] | None = (
-        field(default=None)
     )
     user: Annotated[str, Doc("image user")] | None = field(default="65532")
 
@@ -30,12 +26,6 @@ class Crane:
             return self.container_
 
         container: dagger.Container = dag.container()
-        if self.registry_username is not None and self.registry_password is not None:
-            container = container.with_registry_auth(
-                address=self.image,
-                username=self.registry_username,
-                secret=self.registry_password,
-            )
 
         pkg = "crane"
         if self.version:
@@ -43,11 +33,21 @@ class Crane:
 
         self.container_ = (
             container.from_(address=self.image)
+            .with_env_variable("DOCKER_CONFIG", "/tmp/docker")
             .with_user("0")
             .with_exec(["apk", "add", "--no-cache", pkg])
             .with_entrypoint(["/usr/bin/crane"])
             .with_user(self.user)
         )
+
+        if self.docker_config:
+            self.container_ = self.container_.with_file(
+                "${DOCKER_CONFIG}/config.json",
+                source=self.docker_config,
+                owner=self.user,
+                permissions=0o600,
+                expand=True,
+            )
 
         return self.container_
 
@@ -191,11 +191,7 @@ class Crane:
         platform: Annotated[str, Doc("Specifies the platform")] | None = None,
     ) -> Self:
         """Tag remote image without downloading it (For chaining)."""
-        await self.tag(
-            image=image,
-            tag=tag,
-            platform=platform,
-        )
+        await self.tag(image=image, tag=tag, platform=platform)
         return self
 
     @function
@@ -234,12 +230,7 @@ class Crane:
         platform: Annotated[str, Doc("Specifies the platform")] | None = None,
     ) -> Self:
         """Push image from OCI layout dir (For chaining)"""
-        await self.push(
-            path=path,
-            image=image,
-            index=index,
-            platform=platform,
-        )
+        await self.push(path=path, image=image, index=index, platform=platform)
         return self
 
     @function
@@ -272,9 +263,5 @@ class Crane:
         platform: Annotated[str, Doc("Specifies the platform")] | None = None,
     ) -> Self:
         """Push image from tarball (For chaining)"""
-        await self.push_tarball(
-            tarball=tarball,
-            image=image,
-            platform=platform,
-        )
+        await self.push_tarball(tarball=tarball, image=image, platform=platform)
         return self

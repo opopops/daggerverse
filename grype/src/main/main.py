@@ -13,6 +13,9 @@ class Grype:
     version: Annotated[str, Doc("Grype version")] | None = field(default=None)
     user: Annotated[str, Doc("Image user")] = field(default="nonroot")
 
+    docker_config: Annotated[dagger.File, Doc("Docker config file")] | None = field(
+        default=None
+    )
     registry_username: Annotated[str, Doc("Registry username")] | None = field(
         default=None
     )
@@ -43,11 +46,12 @@ class Grype:
 
         self.container_ = (
             container.from_(address=self.image)
+            .with_env_variable("DOCKER_CONFIG", "/tmp/docker")
+            .with_env_variable("GRYPE_DB_CACHE_DIR", "/tmp/cache")
             .with_user("0")
             .with_exec(["apk", "add", "--no-cache", "docker-cli", pkg])
             .with_entrypoint(["/usr/bin/grype"])
             .with_user(self.user)
-            .with_env_variable("GRYPE_DB_CACHE_DIR", "/tmp/cache")
             .with_mounted_cache(
                 "$GRYPE_DB_CACHE_DIR",
                 dag.cache_volume("grype-db-cache"),
@@ -56,6 +60,16 @@ class Grype:
                 expand=True,
             )
         )
+
+        if self.docker_config:
+            self.container_ = self.container_.with_file(
+                "${DOCKER_CONFIG}/config.json",
+                source=self.docker_config,
+                owner=self.user,
+                permissions=0o600,
+                expand=True,
+            )
+
         return self.container_
 
     @function

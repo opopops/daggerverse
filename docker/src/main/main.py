@@ -2,7 +2,7 @@ import asyncio
 from typing import Annotated
 
 import dagger
-from dagger import Doc, Name, dag, field, function, object_type
+from dagger import DefaultPath, Doc, Name, dag, field, function, object_type
 
 from .build import Build
 
@@ -33,7 +33,7 @@ class Docker:
     @function
     async def build(
         self,
-        context: Annotated[dagger.Directory, Doc("Context")],
+        context: Annotated[dagger.Directory, DefaultPath("."), Doc("Context")],
         dockerfile: Annotated[
             dagger.File, Doc("Location of the Dockerfile"), Name("file")
         ],

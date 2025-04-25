@@ -13,12 +13,8 @@ class Cosign:
     )
     version: Annotated[str, Doc("Cosign version")] | None = field(default=None)
     user: Annotated[str, Doc("Cosign image user")] = field(default="65532")
-
-    registry_username: Annotated[str, Doc("Registry username")] | None = field(
+    docker_config: Annotated[dagger.File, Doc("Docker config file")] | None = field(
         default=None
-    )
-    registry_password: Annotated[dagger.Secret, Doc("Registry password")] | None = (
-        field(default=None)
     )
 
     container_: dagger.Container | None = None
@@ -30,23 +26,27 @@ class Cosign:
             return self.container_
 
         container: dagger.Container = dag.container()
-        if self.registry_username is not None and self.registry_password is not None:
-            container = container.with_registry_auth(
-                address=self.image,
-                username=self.registry_username,
-                secret=self.registry_password,
-            )
         pkg = "cosign"
         if self.version:
             pkg = f"{pkg}~{self.version}"
 
         self.container_ = (
             container.from_(address=self.image)
+            .with_env_variable("DOCKER_CONFIG", "/tmp/docker")
             .with_user("0")
             .with_exec(["apk", "add", "--no-cache", pkg])
             .with_entrypoint(["/usr/bin/cosign"])
             .with_user(self.user)
         )
+
+        if self.docker_config:
+            self.container_ = self.container_.with_file(
+                "${DOCKER_CONFIG}/config.json",
+                source=self.docker_config,
+                owner=self.user,
+                permissions=0o600,
+                expand=True,
+            )
 
         return self.container_
 

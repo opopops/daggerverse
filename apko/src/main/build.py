@@ -1,7 +1,7 @@
 from typing import Annotated, Self
 from urllib.parse import urlparse
 import dagger
-from dagger import Doc, Name, dag, function, object_type
+from dagger import Doc, Name, dag, function, object_type, field
 
 from .image import Image
 
@@ -14,7 +14,10 @@ class Build:
     sbom: Annotated[dagger.Directory, Doc("SBOM directory")]
     tag: Annotated[str, Doc("Image tag")]
 
-    credentials_: list[tuple[str, str, dagger.Secret]] | None = None
+    docker_config: Annotated[dagger.File, Doc("Docker config file")] | None = field(
+        default=None
+    )
+
     crane_: dagger.Crane | None = None
 
     def registry(self) -> str:
@@ -26,11 +29,7 @@ class Build:
         """Returns configured Crane"""
         if self.crane_:
             return self.crane_
-        self.crane_: dagger.Crane = dag.crane()
-        for credential in self.credentials_ or []:
-            self.crane_ = self.crane_.with_registry_auth(
-                address=credential[0], username=credential[1], secret=credential[2]
-            )
+        self.crane_: dagger.Crane = dag.crane(docker_config=self.docker_config)
         return self.crane_
 
     @function
@@ -104,24 +103,11 @@ class Build:
 
     @function
     async def publish(
-        self,
-        tags: Annotated[list[str], Doc("Additional tags"), Name("tag")] = (),
-        registry_username: Annotated[str, Doc("Registry username")] | None = None,
-        registry_password: Annotated[dagger.Secret, Doc("Registry password")]
-        | None = None,
+        self, tags: Annotated[list[str], Doc("Additional tags"), Name("tag")] = ()
     ) -> Image:
         """Publish multi-arch image"""
-        if registry_username and registry_password:
-            if self.credentials_:
-                self.credentials_.append(
-                    (self.registry(), registry_username, registry_password)
-                )
-            else:
-                self.credentials_ = [
-                    (self.registry(), registry_username, registry_password)
-                ]
         await self.crane().push(path=self.oci, image=self.tag, index=True)
         # additionnal tags
         for tag in tags:
             await self.crane().copy(source=self.tag, target=tag)
-        return Image(address=self.tag, sbom=self.sbom, credentials_=self.credentials_)
+        return Image(address=self.tag, sbom=self.sbom, docker_config=self.docker_config)

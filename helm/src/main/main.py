@@ -15,13 +15,6 @@ class Helm:
     version: Annotated[str, Doc("Helm version")] | None = field(default=None)
     user: Annotated[str, Doc("image user")] | None = field(default="65532")
 
-    registry_username: Annotated[str, Doc("Registry username")] | None = field(
-        default=None
-    )
-    registry_password: Annotated[dagger.Secret, Doc("Registry password")] | None = (
-        field(default=None)
-    )
-
     container_: dagger.Container | None = None
 
     @function
@@ -31,13 +24,6 @@ class Helm:
             return self.container_
 
         container: dagger.Container = dag.container()
-        if self.registry_username is not None and self.registry_password is not None:
-            container = container.with_registry_auth(
-                address=self.image,
-                username=self.registry_username,
-                secret=self.registry_password,
-            )
-
         pkg = "helm"
         if self.version:
             pkg = f"{pkg}~{self.version}"

@@ -10,12 +10,6 @@ class Melange:
         default="cgr.dev/chainguard/wolfi-base:latest"
     )
     version: Annotated[str, Doc("Melange version")] | None = field(default=None)
-    registry_username: Annotated[str, Doc("Registry username")] | None = field(
-        default=None
-    )
-    registry_password: Annotated[dagger.Secret, Doc("Registry password")] | None = (
-        field(default=None)
-    )
     user: Annotated[str, Doc("image user")] | None = field(default="0")
 
     container_: dagger.Container | None = None
@@ -30,13 +24,6 @@ class Melange:
             return self.container_
 
         container: dagger.Container = dag.container()
-        if self.registry_username is not None and self.registry_password is not None:
-            container = container.with_registry_auth(
-                address=self.image,
-                username=self.registry_username,
-                secret=self.registry_password,
-            )
-
         pkg = "melange"
         if self.version:
             pkg = f"{pkg}~{self.version}"

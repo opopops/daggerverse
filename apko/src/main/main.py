@@ -2,7 +2,7 @@ from typing import Annotated, Self
 from urllib.parse import urlparse
 import os
 import dagger
-from dagger import Doc, Name, dag, function, field, object_type
+from dagger import DefaultPath, Doc, Name, dag, function, field, object_type
 
 from .build import Build
 from .image import Image
@@ -18,15 +18,11 @@ class Apko:
     version: Annotated[str, Doc("Apko version")] | None = field(default=None)
     user: Annotated[str, Doc("Image user")] | None = field(default="65532")
 
-    registry_username: Annotated[str, Doc("Registry username")] | None = field(
+    docker_config: Annotated[dagger.File, Doc("Docker config file")] | None = field(
         default=None
-    )
-    registry_password: Annotated[dagger.Secret, Doc("Registry password")] | None = (
-        field(default=None)
     )
 
     container_: dagger.Container | None = None
-    credentials_: list[tuple[str, str, dagger.Secret]] | None = None
 
     def registry(self) -> str:
         """Retrieves the registry host from image address"""
@@ -39,12 +35,6 @@ class Apko:
             return self.container_
 
         container: dagger.Container = dag.container()
-        if self.registry_username is not None and self.registry_password is not None:
-            container = container.with_registry_auth(
-                address=self.registry(),
-                username=self.registry_username,
-                secret=self.registry_password,
-            )
 
         pkg = "apko"
         if self.version:
@@ -52,10 +42,6 @@ class Apko:
 
         self.container_ = (
             container.from_(address=self.image)
-            .with_user("0")
-            .with_exec(["apk", "add", "--no-cache", pkg])
-            .with_entrypoint(["/usr/bin/apko"])
-            .with_user(self.user)
             .with_env_variable("APKO_CACHE_DIR", "/tmp/cache", expand=True)
             .with_env_variable("APKO_CONFIG_DIR", "/tmp/config", expand=True)
             .with_env_variable("APKO_WORK_DIR", "/tmp/work", expand=True)
@@ -68,6 +54,11 @@ class Apko:
                 "APKO_KEYRING_FILE", "/tmp/keyring/melange.rsa.pub", expand=True
             )
             .with_env_variable("APKO_REPOSITORY_DIR", "/tmp/repository", expand=True)
+            .with_env_variable("DOCKER_CONFIG", "/tmp/docker", expand=True)
+            .with_user("0")
+            .with_exec(["apk", "add", "--no-cache", pkg])
+            .with_entrypoint(["/usr/bin/apko"])
+            .with_user(self.user)
             .with_mounted_cache(
                 "$APKO_CACHE_DIR",
                 dag.cache_volume("apko-cache"),
@@ -76,10 +67,16 @@ class Apko:
                 expand=True,
             )
             .with_exec(
-                ["mkdir", "-p", "$APKO_OUTPUT_DIR"], use_entrypoint=False, expand=True
+                ["mkdir", "-p", "$APKO_OUTPUT_DIR", "$APKO_SBOM_DIR", "$DOCKER_CONFIG"],
+                use_entrypoint=False,
+                expand=True,
             )
-            .with_exec(
-                ["mkdir", "-p", "$APKO_SBOM_DIR"], use_entrypoint=False, expand=True
+            .with_new_file(
+                "${DOCKER_CONFIG}/config.json",
+                contents="",
+                owner=self.user,
+                permissions=0o600,
+                expand=True,
             )
         )
         return self.container_
@@ -105,16 +102,14 @@ class Apko:
         self.container_ = container.with_secret_variable(
             "REGISTRY_PASSWORD", secret
         ).with_exec(cmd, use_entrypoint=False)
-        if self.credentials_:
-            self.credentials_.append((address, username, secret))
-        else:
-            self.credentials_ = [(address, username, secret)]
         return self
 
     @function
     async def build(
         self,
-        workdir: Annotated[dagger.Directory, Doc("Working dir"), Name("context")],
+        workdir: Annotated[
+            dagger.Directory, DefaultPath("."), Doc("Working dir"), Name("context")
+        ],
         config: Annotated[dagger.File, Doc("Config file")],
         tag: Annotated[str, Doc("Image tag")],
         arch: Annotated[str, Doc("Architectures to build for")] | None = None,
@@ -184,13 +179,17 @@ class Apko:
                 "$APKO_SBOM_DIR", expand=True
             ),
             tag=tag,
-            credentials_=self.credentials_,
+            docker_config=self.container().file(
+                "${DOCKER_CONFIG}/config.json", expand=True
+            ),
         )
 
     @function
     async def publish(
         self,
-        workdir: Annotated[dagger.Directory, Doc("Working dir"), Name("context")],
+        workdir: Annotated[
+            dagger.Directory, DefaultPath("."), Doc("Working dir"), Name("context")
+        ],
         config: Annotated[dagger.File, Doc("Config file")],
         tags: Annotated[list[str], Doc("Image tags"), Name("tag")],
         sbom: Annotated[bool, Doc("generate an SBOM")] | None = True,
@@ -263,5 +262,7 @@ class Apko:
             sbom=apko.with_exec(cmd, use_entrypoint=True, expand=True).directory(
                 "$APKO_SBOM_DIR", expand=True
             ),
-            credentials_=self.credentials_,
+            docker_config=self.container().file(
+                "${DOCKER_CONFIG}/config.json", expand=True
+            ),
         )

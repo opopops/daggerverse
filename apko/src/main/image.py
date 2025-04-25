@@ -2,7 +2,7 @@ import json
 from typing import Annotated, Self
 from urllib.parse import urlparse
 import dagger
-from dagger import Doc, Name, dag, function, object_type
+from dagger import Doc, dag, function, object_type, field
 
 
 @object_type
@@ -12,7 +12,10 @@ class Image:
     address: Annotated[str, Doc("Image address")]
     sbom: Annotated[dagger.Directory, Doc("SBOM directory")]
 
-    credentials_: list[tuple[str, str, dagger.Secret]] | None = None
+    docker_config: Annotated[dagger.File, Doc("Docker config file")] | None = field(
+        default=None
+    )
+
     container_: dagger.Container | None = None
 
     crane_: dagger.Crane | None = None
@@ -26,10 +29,6 @@ class Image:
             return self.container_
 
         container: dagger.Container = dag.container(platform=platform)
-        for credential in self.credentials_ or []:
-            container = container.with_registry_auth(
-                address=credential[0], username=credential[1], secret=credential[2]
-            )
         self.container_ = container.from_(self.address)
         return self.container_
 
@@ -37,33 +36,21 @@ class Image:
         """Returns crane"""
         if self.crane_:
             return self.crane_
-        self.crane_ = dag.crane()
-        for credential in self.credentials_ or []:
-            self.crane_ = self.crane_.with_registry_auth(
-                address=credential[0], username=credential[1], secret=credential[2]
-            )
+        self.crane_ = dag.crane(docker_config=self.docker_config)
         return self.crane_
 
     def cosign(self) -> dagger.Cosign:
         """Returns cosign"""
         if self.cosign_:
             return self.cosign_
-        self.cosign_ = dag.cosign()
-        for credential in self.credentials_ or []:
-            self.cosign_ = self.cosign_.with_registry_auth(
-                address=credential[0], username=credential[1], secret=credential[2]
-            )
+        self.cosign_ = dag.cosign(docker_config=self.docker_config)
         return self.cosign_
 
     def grype(self) -> dagger.Grype:
         """Returns grype"""
         if self.grype_:
             return self.grype_
-        self.grype_ = dag.grype()
-        for credential in self.credentials_ or []:
-            self.grype_ = self.grype_.with_registry_auth(
-                address=credential[0], username=credential[1], secret=credential[2]
-            )
+        self.grype_ = dag.grype(docker_config=self.docker_config)
         return self.grype_
 
     @function
