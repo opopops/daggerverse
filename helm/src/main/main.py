@@ -239,7 +239,7 @@ class Helm:
         path: Annotated[dagger.Directory, Doc("Path to the chart")],
         registry: Annotated[str, Doc("Registry host")],
         username: Annotated[str, Doc("Registry username")] = "",
-        password: Annotated[dagger.Secret, Doc("Registry password")] = "",
+        password: Annotated[dagger.Secret | None, Doc("Registry password")] = None,
         plain_http: Annotated[
             bool, Doc("Use insecure HTTP connections for the chart upload")
         ] = False,
