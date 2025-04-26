@@ -2,7 +2,7 @@ from typing import Annotated, Self
 from urllib.parse import urlparse
 import os
 import dagger
-from dagger import DefaultPath, Doc, Name, dag, function, field, object_type
+from dagger import DefaultPath, Doc, Name, dag, function, object_type
 
 from .build import Build
 from .image import Image
@@ -12,15 +12,11 @@ from .image import Image
 class Apko:
     """Apko module"""
 
-    image: Annotated[str, Doc("wolfi-base image")] = field(
-        default="cgr.dev/chainguard/wolfi-base:latest"
+    image: Annotated[str, Doc("wolfi-base image")] = (
+        "cgr.dev/chainguard/wolfi-base:latest"
     )
-    version: Annotated[str, Doc("Apko version")] | None = field(default=None)
-    user: Annotated[str, Doc("Image user")] | None = field(default="65532")
-
-    docker_config: Annotated[dagger.File, Doc("Docker config file")] | None = field(
-        default=None
-    )
+    version: Annotated[str, Doc("Apko version")] = "latest"
+    user: Annotated[str, Doc("Image user")] = "65532"
 
     container_: dagger.Container | None = None
 
@@ -29,25 +25,33 @@ class Apko:
         url = urlparse(f"//{self.image}")
         return url.netloc
 
+    def docker_config(self) -> dagger.File:
+        """Returns the docker config file"""
+        return self.container().file("${DOCKER_CONFIG}/config.json", expand=True)
+
     @function
     def container(self) -> dagger.Container:
-        """Returns configured apko container"""
+        """Returns apko container"""
         if self.container_:
             return self.container_
 
         container: dagger.Container = dag.container()
 
         pkg = "apko"
-        if self.version:
+        if self.version != "latest":
             pkg = f"{pkg}~{self.version}"
 
         self.container_ = (
             container.from_(address=self.image)
-            .with_env_variable("APKO_CACHE_DIR", "/tmp/cache", expand=True)
-            .with_env_variable("APKO_CONFIG_DIR", "/tmp/config", expand=True)
-            .with_env_variable("APKO_WORK_DIR", "/tmp/work", expand=True)
-            .with_env_variable("APKO_OUTPUT_DIR", "/tmp/output", expand=True)
-            .with_env_variable("APKO_SBOM_DIR", "/tmp/sbom", expand=True)
+            .with_user("0")
+            .with_exec(["apk", "add", "--no-cache", pkg])
+            .with_entrypoint(["/usr/bin/apko"])
+            .with_user(self.user)
+            .with_env_variable("APKO_CACHE_DIR", "/tmp/cache")
+            .with_env_variable("APKO_CONFIG_DIR", "/tmp/config")
+            .with_env_variable("APKO_WORK_DIR", "/tmp/work")
+            .with_env_variable("APKO_OUTPUT_DIR", "/tmp/output")
+            .with_env_variable("APKO_SBOM_DIR", "/tmp/sbom")
             .with_env_variable(
                 "APKO_OUTPUT_TAR", "${APKO_OUTPUT_DIR}/image.tar", expand=True
             )
@@ -56,10 +60,6 @@ class Apko:
             )
             .with_env_variable("APKO_REPOSITORY_DIR", "/tmp/repository", expand=True)
             .with_env_variable("DOCKER_CONFIG", "/tmp/docker", expand=True)
-            .with_user("0")
-            .with_exec(["apk", "add", "--no-cache", pkg])
-            .with_entrypoint(["/usr/bin/apko"])
-            .with_user(self.user)
             .with_mounted_cache(
                 "$APKO_CACHE_DIR",
                 dag.cache_volume("apko-cache"),
@@ -87,7 +87,7 @@ class Apko:
         self,
         username: Annotated[str, Doc("Registry username")],
         secret: Annotated[dagger.Secret, Doc("Registry password")],
-        address: Annotated[str, Doc("Registry host")] | None = "docker.io",
+        address: Annotated[str, Doc("Registry host")] = "docker.io",
     ) -> Self:
         """Authenticates with registry"""
         container: dagger.Container = self.container()
@@ -113,15 +113,13 @@ class Apko:
         ],
         config: Annotated[dagger.File, Doc("Config file")],
         tag: Annotated[str, Doc("Image tag")],
-        arch: Annotated[str, Doc("Architectures to build for")] | None = None,
+        arch: Annotated[str, Doc("Architectures to build for")] = "",
         keyring_append: Annotated[
-            dagger.File, Doc("Path to extra keys to include in the keyring")
-        ]
-        | None = None,
+            dagger.File | None, Doc("Path to extra keys to include in the keyring")
+        ] = None,
         repository_append: Annotated[
-            dagger.Directory, Doc("Path to extra repositories to include")
-        ]
-        | None = None,
+            dagger.Directory | None, Doc("Path to extra repositories to include")
+        ] = None,
     ) -> Build:
         """Build an image using Apko"""
         config_name = await config.name()
@@ -180,9 +178,7 @@ class Apko:
                 "$APKO_SBOM_DIR", expand=True
             ),
             tag=tag,
-            docker_config=self.container().file(
-                "${DOCKER_CONFIG}/config.json", expand=True
-            ),
+            docker_config=self.docker_config(),
         )
 
     @function
@@ -193,18 +189,17 @@ class Apko:
         ],
         config: Annotated[dagger.File, Doc("Config file")],
         tags: Annotated[list[str], Doc("Image tags"), Name("tag")],
-        sbom: Annotated[bool, Doc("generate an SBOM")] | None = True,
-        arch: Annotated[str, Doc("Architectures to build for")] | None = None,
-        local: Annotated[bool, Doc("Publish image just to local Docker daemon")]
-        | None = False,
+        sbom: Annotated[bool, Doc("generate an SBOM")] = True,
+        arch: Annotated[str, Doc("Architectures to build for")] = "",
+        local: Annotated[
+            bool, Doc("Publish image just to local Docker daemon")
+        ] = False,
         keyring_append: Annotated[
-            dagger.File, Doc("Path to extra keys to include in the keyring")
-        ]
-        | None = None,
+            dagger.File | None, Doc("Path to extra keys to include in the keyring")
+        ] = None,
         repository_append: Annotated[
-            dagger.Directory, Doc("Path to extra repositories to include")
-        ]
-        | None = None,
+            dagger.Directory | None, Doc("Path to extra repositories to include")
+        ] = None,
     ) -> Image:
         """Publish an image using Apko"""
         config_name = await config.name()
@@ -263,7 +258,5 @@ class Apko:
             sbom=apko.with_exec(cmd, use_entrypoint=True, expand=True).directory(
                 "$APKO_SBOM_DIR", expand=True
             ),
-            docker_config=self.container().file(
-                "${DOCKER_CONFIG}/config.json", expand=True
-            ),
+            docker_config=self.docker_config(),
         )

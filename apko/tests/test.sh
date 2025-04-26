@@ -10,7 +10,10 @@ cd "$MODULE_DIR"
 
 dagger call \
   with-registry-auth \
-    --address docker.io \
+    --address ghcr.io \
+    --username $GITHUB_USERNAME \
+    --secret env:GITHUB_TOKEN \
+  with-registry-auth \
     --username $DOCKERHUB_USERNAME \
     --secret env:DOCKERHUB_TOKEN \
   build \
@@ -23,7 +26,10 @@ dagger call \
 
 dagger call \
   with-registry-auth \
-    --address docker.io \
+    --address ghcr.io \
+    --username $GITHUB_USERNAME \
+    --secret env:GITHUB_TOKEN \
+  with-registry-auth \
     --username $DOCKERHUB_USERNAME \
     --secret env:DOCKERHUB_TOKEN \
   publish \

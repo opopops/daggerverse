@@ -1,7 +1,7 @@
 from typing import Annotated, Self
 
 import dagger
-from dagger import Doc, dag, field, function, object_type
+from dagger import Doc, dag, function, object_type
 
 from .image import Image
 
@@ -12,13 +12,9 @@ class Build:
 
     platform_variants: Annotated[list[dagger.Container], Doc("Platform variants build")]
 
-    registry: Annotated[str, Doc("Registry host")] | None = field(default="docker.io")
-    registry_username: Annotated[str, Doc("Registry username")] | None = field(
-        default=None
-    )
-    registry_password: Annotated[dagger.Secret, Doc("Registry password")] | None = (
-        field(default=None)
-    )
+    registry: Annotated[str, Doc("Registry host")] = "docker.io"
+    registry_username: Annotated[str, Doc("Registry username")] = ""
+    registry_password: Annotated[dagger.Secret, Doc("Registry password")] = ""
 
     build_container_: dagger.Container | None = None
     platform_container_: dagger.Container | None = None

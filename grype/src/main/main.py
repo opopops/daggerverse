@@ -1,27 +1,18 @@
 from typing import Annotated, Self
 import dagger
-from dagger import Doc, dag, function, field, object_type
+from dagger import Doc, dag, function, object_type
 
 
 @object_type
 class Grype:
     """Grype CLI"""
 
-    image: Annotated[str, Doc("Grype image")] = field(
-        default="cgr.dev/chainguard/wolfi-base:latest"
+    image: Annotated[str, Doc("wolfi-base image")] = (
+        "cgr.dev/chainguard/wolfi-base:latest"
     )
-    version: Annotated[str, Doc("Grype version")] | None = field(default=None)
-    user: Annotated[str, Doc("Image user")] = field(default="nonroot")
-
-    docker_config: Annotated[dagger.File, Doc("Docker config file")] | None = field(
-        default=None
-    )
-    registry_username: Annotated[str, Doc("Registry username")] | None = field(
-        default=None
-    )
-    registry_password: Annotated[dagger.Secret, Doc("Registry password")] | None = (
-        field(default=None)
-    )
+    version: Annotated[str, Doc("Grype version")] = "latest"
+    user: Annotated[str, Doc("Image user")] = "65532"
+    docker_config: Annotated[dagger.File | None, Doc("Docker config file")] = None
 
     container_: dagger.Container | None = None
 
@@ -33,15 +24,8 @@ class Grype:
 
         container: dagger.Container = dag.container()
 
-        if self.registry_username is not None and self.registry_password is not None:
-            container = container.with_registry_auth(
-                address=self.image,
-                username=self.registry_username,
-                secret=self.registry_password,
-            )
-
         pkg = "grype"
-        if self.version:
+        if self.version != "latest":
             pkg = f"{pkg}~{self.version}"
 
         self.container_ = (
@@ -77,7 +61,7 @@ class Grype:
         self,
         username: Annotated[str, Doc("Registry username")],
         secret: Annotated[dagger.Secret, Doc("Registry password")],
-        address: Annotated[str, Doc("Registry host")] | None = "docker.io",
+        address: Annotated[str, Doc("Registry host")] = "docker.io",
     ) -> Self:
         """Authenticate with registry"""
         container: dagger.Container = self.container()
@@ -106,8 +90,7 @@ class Grype:
                     """Specify the minimum vulnerability severity to trigger an "error" level ACS result"""
                 ),
             ]
-            | None
-        ) = None,
+        ) = "",
         fail: Annotated[
             bool, Doc("Set to false to avoid failing based on severity-cutoff")
         ] = True,
@@ -141,8 +124,7 @@ class Grype:
                     """Specify the minimum vulnerability severity to trigger an "error" level ACS result"""
                 ),
             ]
-            | None
-        ) = None,
+        ) = "",
         fail: Annotated[
             bool, Doc("Set to false to avoid failing based on severity-cutoff")
         ] = True,
@@ -161,7 +143,7 @@ class Grype:
     def scan_image(
         self,
         source: Annotated[str, Doc("Image to scan")],
-        source_type: Annotated[str, Doc("Source type")] | None = "registry",
+        source_type: Annotated[str, Doc("Source type")] = "registry",
         severity_cutoff: (
             Annotated[
                 str,
@@ -169,8 +151,7 @@ class Grype:
                     """Specify the minimum vulnerability severity to trigger an "error" level ACS result"""
                 ),
             ]
-            | None
-        ) = None,
+        ) = "",
         fail: Annotated[
             bool, Doc("Set to false to avoid failing based on severity-cutoff")
         ] = True,
@@ -203,7 +184,7 @@ class Grype:
     def with_scan_image(
         self,
         source: Annotated[str, Doc("Image to scan")],
-        source_type: Annotated[str, Doc("Source type")] | None = "registry",
+        source_type: Annotated[str, Doc("Source type")] = "registry",
         severity_cutoff: (
             Annotated[
                 str,
@@ -211,8 +192,7 @@ class Grype:
                     """Specify the minimum vulnerability severity to trigger an "error" level ACS result"""
                 ),
             ]
-            | None
-        ) = None,
+        ) = "",
         fail: Annotated[
             bool, Doc("Set to false to avoid failing based on severity-cutoff")
         ] = True,
@@ -281,7 +261,7 @@ class Grype:
     def with_scan_directory(
         self,
         source: Annotated[dagger.Directory, Doc("Directory to scan")],
-        source_type: Annotated[str, Doc("Source type")] | None = "registry",
+        source_type: Annotated[str, Doc("Source type")] = "registry",
         severity_cutoff: (
             Annotated[
                 str,
@@ -289,8 +269,7 @@ class Grype:
                     """Specify the minimum vulnerability severity to trigger an "error" level ACS result"""
                 ),
             ]
-            | None
-        ) = None,
+        ) = "",
         fail: Annotated[
             bool, Doc("Set to false to avoid failing based on severity-cutoff")
         ] = True,
@@ -310,7 +289,7 @@ class Grype:
     def scan_file(
         self,
         source: Annotated[dagger.File, Doc("File to scan")],
-        source_type: Annotated[str, Doc("Source type")] | None = "file",
+        source_type: Annotated[str, Doc("Source type")] = "file",
         severity_cutoff: (
             Annotated[
                 str,
@@ -318,8 +297,7 @@ class Grype:
                     """Specify the minimum vulnerability severity to trigger an "error" level ACS result"""
                 ),
             ]
-            | None
-        ) = None,
+        ) = "",
         fail: Annotated[
             bool, Doc("Set to false to avoid failing based on severity-cutoff")
         ] = True,
@@ -356,7 +334,7 @@ class Grype:
     def with_scan_file(
         self,
         source: Annotated[dagger.File, Doc("File to scan")],
-        source_type: Annotated[str, Doc("Source type")] | None = "registry",
+        source_type: Annotated[str, Doc("Source type")] = "registry",
         severity_cutoff: (
             Annotated[
                 str,
@@ -364,8 +342,7 @@ class Grype:
                     """Specify the minimum vulnerability severity to trigger an "error" level ACS result"""
                 ),
             ]
-            | None
-        ) = None,
+        ) = "",
         fail: Annotated[
             bool, Doc("Set to false to avoid failing based on severity-cutoff")
         ] = True,

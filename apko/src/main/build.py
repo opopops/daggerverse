@@ -1,7 +1,7 @@
 from typing import Annotated, Self
 from urllib.parse import urlparse
 import dagger
-from dagger import Doc, Name, dag, function, object_type, field
+from dagger import Doc, Name, dag, function, object_type
 
 from .image import Image
 
@@ -13,10 +13,7 @@ class Build:
     oci: Annotated[dagger.Directory, Doc("OCI directory")]
     sbom: Annotated[dagger.Directory, Doc("SBOM directory")]
     tag: Annotated[str, Doc("Image tag")]
-
-    docker_config: Annotated[dagger.File, Doc("Docker config file")] | None = field(
-        default=None
-    )
+    docker_config: Annotated[dagger.File, Doc("Docker config file")]
 
     crane_: dagger.Crane | None = None
 

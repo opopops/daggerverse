@@ -2,7 +2,7 @@ import asyncio
 from typing import Annotated
 
 import dagger
-from dagger import DefaultPath, Doc, Name, dag, field, function, object_type
+from dagger import DefaultPath, Doc, Name, dag, function, object_type
 
 from .build import Build
 
@@ -11,13 +11,9 @@ from .build import Build
 class Docker:
     """Docker CLI"""
 
-    registry: Annotated[str, Doc("Registry host")] | None = field(default="docker.io")
-    registry_username: Annotated[str, Doc("Registry username")] | None = field(
-        default=None
-    )
-    registry_password: Annotated[dagger.Secret, Doc("Registry password")] | None = (
-        field(default=None)
-    )
+    registry: Annotated[str, Doc("Registry host")] = "docker.io"
+    registry_username: Annotated[str, Doc("Registry username")] = ""
+    registry_password: Annotated[dagger.Secret, Doc("Registry password")] = ""
 
     def container(self, platform: dagger.Platform | None = None) -> dagger.Container:
         """Returns authentcated Docker container"""

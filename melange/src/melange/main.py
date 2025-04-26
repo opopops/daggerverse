@@ -1,16 +1,16 @@
 from typing import Annotated, Self
 import os
 import dagger
-from dagger import Doc, dag, function, field, object_type
+from dagger import Doc, dag, function, object_type
 
 
 @object_type
 class Melange:
-    image: Annotated[str, Doc("Melange image")] = field(
-        default="cgr.dev/chainguard/wolfi-base:latest"
+    image: Annotated[str, Doc("wolfi-base image")] = (
+        "cgr.dev/chainguard/wolfi-base:latest"
     )
-    version: Annotated[str, Doc("Melange version")] | None = field(default=None)
-    user: Annotated[str, Doc("image user")] | None = field(default="0")
+    version: Annotated[str, Doc("Melange version")] = "latest"
+    user: Annotated[str, Doc("Image user")] = "0"
 
     container_: dagger.Container | None = None
 
@@ -25,7 +25,7 @@ class Melange:
 
         container: dagger.Container = dag.container()
         pkg = "melange"
-        if self.version:
+        if self.version != "latest":
             pkg = f"{pkg}~{self.version}"
 
         self.container_ = (
@@ -152,14 +152,13 @@ class Melange:
     async def build(
         self,
         config: Annotated[dagger.File, Doc("Config file")],
-        version: Annotated[str, Doc("Version to bump to")] | None = None,
+        version: Annotated[str, Doc("Version to bump to")] = "",
         source_dir: Annotated[
-            dagger.Directory, Doc("Directory used for included sources")
-        ]
-        | None = None,
+            dagger.Directory | None, Doc("Directory used for included sources")
+        ] = None,
         signing_key: Annotated[dagger.File, Doc("Key to use for signing")]
         | None = None,
-        arch: Annotated[str, Doc("Architectures to build for")] | None = None,
+        arch: Annotated[str, Doc("Architectures to build for")] = "",
     ) -> dagger.Directory:
         """Build a package from a YAML configuration file"""
         config_name = await config.name()
@@ -241,10 +240,11 @@ class Melange:
     async def with_build(
         self,
         config: Annotated[dagger.File, Doc("Config file")],
-        version: Annotated[str, Doc("Version to bump to")] | None = None,
-        signing_key: Annotated[dagger.File, Doc("Key to use for signing")]
-        | None = None,
-        arch: Annotated[str, Doc("Architectures to build for")] | None = None,
+        version: Annotated[str, Doc("Version to bump to")] = "",
+        signing_key: Annotated[
+            dagger.File | None, Doc("Key to use for signing")
+        ] = None,
+        arch: Annotated[str, Doc("Architectures to build for")] = "",
     ) -> Self:
         """Build a package from a YAML configuration file (for chaining)"""
         await self.build(

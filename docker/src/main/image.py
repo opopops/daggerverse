@@ -3,7 +3,7 @@ from typing import Annotated, Self
 from urllib.parse import urlparse
 
 import dagger
-from dagger import Doc, dag, field, function, object_type
+from dagger import Doc, dag, function, object_type
 
 
 @object_type
@@ -12,12 +12,8 @@ class Image:
 
     address: Annotated[str, Doc("Image address")]
 
-    registry_username: Annotated[str, Doc("Registry username")] | None = field(
-        default=None
-    )
-    registry_password: Annotated[dagger.Secret, Doc("Registry password")] | None = (
-        field(default=None)
-    )
+    registry_username: Annotated[str, Doc("Registry username")] = ""
+    registry_password: Annotated[dagger.Secret, Doc("Registry password")] = ""
 
     container_: dagger.Container | None = None
 

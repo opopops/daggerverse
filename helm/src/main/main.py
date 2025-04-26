@@ -2,18 +2,18 @@ from typing import Annotated, Self
 from urllib.parse import urlparse
 
 import dagger
-from dagger import Doc, Name, dag, function, field, object_type
+from dagger import Doc, Name, dag, function, object_type
 
 
 @object_type
 class Helm:
     """Helm module"""
 
-    image: Annotated[str, Doc("Helm image")] = field(
-        default="cgr.dev/chainguard/wolfi-base:latest"
+    image: Annotated[str, Doc("wolfi-base image")] = (
+        "cgr.dev/chainguard/wolfi-base:latest"
     )
-    version: Annotated[str, Doc("Helm version")] | None = field(default=None)
-    user: Annotated[str, Doc("image user")] | None = field(default="65532")
+    version: Annotated[str, Doc("Helm version")] = "latest"
+    user: Annotated[str, Doc("Image user")] = "65532"
 
     container_: dagger.Container | None = None
 
@@ -25,7 +25,7 @@ class Helm:
 
         container: dagger.Container = dag.container()
         pkg = "helm"
-        if self.version:
+        if self.version != "latest":
             pkg = f"{pkg}~{self.version}"
 
         self.container_ = (
@@ -43,7 +43,7 @@ class Helm:
         self,
         username: Annotated[str, Doc("Registry username")],
         secret: Annotated[dagger.Secret, Doc("Registry password")],
-        address: Annotated[str, Doc("Registry host")] | None = "docker.io",
+        address: Annotated[str, Doc("Registry host")] = "docker.io",
     ) -> Self:
         """Authenticate with registry"""
         container: dagger.Container = self.container()
@@ -74,8 +74,8 @@ class Helm:
     async def lint(
         self,
         path: Annotated[dagger.Directory, Doc("Path to the chart")],
-        strict: Annotated[bool, Doc("Fail on lint warnings")] | None = False,
-        quiet: Annotated[bool, Doc("Print only warnings and errors")] | None = False,
+        strict: Annotated[bool, Doc("Fail on lint warnings")] = False,
+        quiet: Annotated[bool, Doc("Print only warnings and errors")] = False,
     ) -> str:
         """Verify that the chart is well-formed"""
         container: dagger.Container = (
@@ -97,8 +97,8 @@ class Helm:
     async def with_lint(
         self,
         path: Annotated[dagger.Directory, Doc("Path to the chart")],
-        strict: Annotated[bool, Doc("Fail on lint warnings")] | None = False,
-        quiet: Annotated[bool, Doc("Print only warnings and errors")] | None = False,
+        strict: Annotated[bool, Doc("Fail on lint warnings")] = False,
+        quiet: Annotated[bool, Doc("Print only warnings and errors")] = False,
     ) -> Self:
         """Verify that the chart is well-formed (for chaining)"""
         await self.lint(path=path, strict=strict, quiet=quiet)
@@ -109,33 +109,32 @@ class Helm:
         self,
         path: Annotated[dagger.Directory, Doc("Path to the chart")],
         show_only: Annotated[
-            list[str], Doc("Only show manifests rendered from the given templates")
-        ]
-        | None = None,
-        sets: Annotated[list[str], Doc("Set values on the command"), Name("set")]
-        | None = None,
+            list[str] | None,
+            Doc("Only show manifests rendered from the given templates"),
+        ] = None,
+        sets: Annotated[
+            list[str] | None, Doc("Set values on the command"), Name("set")
+        ] = None,
         set_files: Annotated[
-            list[str],
+            list[str] | None,
             Doc("Set values from respective files specified via the command"),
             Name("set_file"),
-        ]
-        | None = None,
+        ] = None,
         set_jsons: Annotated[
-            list[dagger.File], Doc("Set JSON values on the command"), Name("set_json")
-        ]
-        | None = None,
+            list[dagger.File] | None,
+            Doc("Set JSON values on the command"),
+            Name("set_json"),
+        ] = None,
         set_literals: Annotated[
-            list[dagger.File],
+            list[dagger.File] | None,
             Doc("Set a literal STRING value on the command"),
             Name("set_literal"),
-        ]
-        | None = None,
+        ] = None,
         set_strings: Annotated[
-            list[dagger.File],
+            list[dagger.File] | None,
             Doc("Set STRING values on the command line"),
             Name("set_string"),
-        ]
-        | None = None,
+        ] = None,
     ) -> str:
         """Render chart templates locally and display the output"""
         container: dagger.Container = (
@@ -167,13 +166,11 @@ class Helm:
         path: Annotated[dagger.Directory, Doc("Path to the chart")],
         app_version: Annotated[
             str, Doc("Set the appVersion on the chart to this version")
-        ]
-        | None = None,
+        ] = "",
         version: Annotated[
             str, Doc("Set the version on the chart to this semver version")
-        ]
-        | None = None,
-        dependency_update: Annotated[bool, Doc("Update dependencies")] | None = False,
+        ] = "",
+        dependency_update: Annotated[bool, Doc("Update dependencies")] = False,
     ) -> dagger.File:
         """Packages a chart into a versioned chart archive file"""
         container: dagger.Container = (
@@ -204,12 +201,11 @@ class Helm:
         self,
         chart: Annotated[dagger.File, Doc("Path to the chart")],
         registry: Annotated[str, Doc("Registry host")],
-        username: Annotated[str, Doc("Registry username")] | None = None,
-        password: Annotated[dagger.Secret, Doc("Registry password")] | None = None,
+        username: Annotated[str, Doc("Registry username")] = "",
+        password: Annotated[dagger.Secret | None, Doc("Registry password")] = None,
         plain_http: Annotated[
             bool, Doc("Use insecure HTTP connections for the chart upload")
-        ]
-        | None = False,
+        ] = False,
     ) -> str:
         """Verify that the chart is well-formed"""
         if username and password:
@@ -242,21 +238,18 @@ class Helm:
         self,
         path: Annotated[dagger.Directory, Doc("Path to the chart")],
         registry: Annotated[str, Doc("Registry host")],
-        username: Annotated[str, Doc("Registry username")] | None = None,
-        password: Annotated[dagger.Secret, Doc("Registry password")] | None = None,
+        username: Annotated[str, Doc("Registry username")] = "",
+        password: Annotated[dagger.Secret, Doc("Registry password")] = "",
         plain_http: Annotated[
             bool, Doc("Use insecure HTTP connections for the chart upload")
-        ]
-        | None = False,
+        ] = False,
         app_version: Annotated[
             str, Doc("Set the appVersion on the chart to this version")
-        ]
-        | None = None,
+        ] = "",
         version: Annotated[
             str, Doc("Set the version on the chart to this semver version")
-        ]
-        | None = None,
-        dependency_update: Annotated[bool, Doc("Update dependencies")] | None = False,
+        ] = "",
+        dependency_update: Annotated[bool, Doc("Update dependencies")] = False,
     ) -> str:
         """Packages a chart an push it to the registry"""
 

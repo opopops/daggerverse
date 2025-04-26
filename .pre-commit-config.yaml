@@ -9,7 +9,7 @@ repos:
       - id: ruff
         name: ruff
         description: "Run 'ruff' for Python linting"
-        entry: ruff check --force-exclude
+        entry: ruff check --force-exclude --fix
         language: python
         types_or: [python, pyi, jupyter]
         require_serial: true

@@ -2,7 +2,7 @@ import json
 from typing import Annotated, Self
 from urllib.parse import urlparse
 import dagger
-from dagger import Doc, dag, function, object_type, field
+from dagger import Doc, dag, function, object_type
 
 
 @object_type
@@ -11,10 +11,7 @@ class Image:
 
     address: Annotated[str, Doc("Image address")]
     sbom: Annotated[dagger.Directory, Doc("SBOM directory")]
-
-    docker_config: Annotated[dagger.File, Doc("Docker config file")] | None = field(
-        default=None
-    )
+    docker_config: Annotated[dagger.File, Doc("Docker config file")]
 
     container_: dagger.Container | None = None
 
