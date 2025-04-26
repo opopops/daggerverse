@@ -1,3 +1,3 @@
 """Crane is a tool for managing container images"""
 
-from .main import Helm
+from .main import Helm as Helm
