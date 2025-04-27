@@ -13,7 +13,7 @@ class Docker:
 
     registry: Annotated[str, Doc("Registry host")] = "docker.io"
     registry_username: Annotated[str, Doc("Registry username")] = ""
-    registry_password: Annotated[dagger.Secret, Doc("Registry password")] = ""
+    registry_password: Annotated[dagger.Secret | None, Doc("Registry password")] = None
 
     def container(self, platform: dagger.Platform | None = None) -> dagger.Container:
         """Returns authentcated Docker container"""

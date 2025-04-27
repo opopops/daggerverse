@@ -18,7 +18,7 @@ dagger call \
   with-scan \
     --severity-cutoff critical \
   publish \
-    --image ${DOCKERHUB_USERNAME}/dagger-test:v1.0.0 \
+    --image docker.io/${DOCKERHUB_USERNAME}/private:docker \
   with-tag \
     --tag latest \
   ref
