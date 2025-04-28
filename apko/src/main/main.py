@@ -114,6 +114,7 @@ class Apko:
         config: Annotated[dagger.File, Doc("Config file")],
         tag: Annotated[str, Doc("Image tag")],
         arch: Annotated[str, Doc("Architectures to build for")] = "",
+        format_: Annotated[str, Doc("Image format"), Name("format")] = "tarball",
         keyring_append: Annotated[
             dagger.File | None, Doc("Path to extra keys to include in the keyring")
         ] = None,
@@ -138,11 +139,14 @@ class Apko:
             .with_workdir("$APKO_WORK_DIR", expand=True)
         )
 
+        output: str = "${APKO_OUTPUT_DIR}/image.tar"
+        if format_ == "oci":
+            output = "${APKO_OUTPUT_DIR}"
         cmd = [
             "build",
             os.path.join("$APKO_CONFIG_DIR", config_name),
             tag,
-            "$APKO_OUTPUT_DIR",
+            output,
             "--cache-dir",
             "$APKO_CACHE_DIR",
             "--sbom-path",
@@ -170,10 +174,21 @@ class Apko:
         if arch:
             cmd.extend(["--arch", arch])
 
+        if format_ == "oci":
+            return Build(
+                oci=apko.with_exec(cmd, use_entrypoint=True, expand=True).directory(
+                    "$APKO_OUTPUT_DIR", expand=True
+                ),
+                sbom=apko.with_exec(cmd, use_entrypoint=True, expand=True).directory(
+                    "$APKO_SBOM_DIR", expand=True
+                ),
+                tag=tag,
+                docker_config=self.docker_config(),
+            )
         return Build(
-            oci=apko.with_exec(cmd, use_entrypoint=True, expand=True).directory(
-                "$APKO_OUTPUT_DIR", expand=True
-            ),
+            tarball=apko.with_exec(cmd, use_entrypoint=True, expand=True)
+            .directory("$APKO_OUTPUT_DIR", expand=True)
+            .file("image.tar"),
             sbom=apko.with_exec(cmd, use_entrypoint=True, expand=True).directory(
                 "$APKO_SBOM_DIR", expand=True
             ),

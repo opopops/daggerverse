@@ -10,7 +10,9 @@ from .image import Image
 class Build:
     """Apko Build module"""
 
-    oci: Annotated[dagger.Directory, Doc("OCI directory")]
+    oci: Annotated[dagger.Directory | None, Doc("OCI directory")] = None
+    tarball: Annotated[dagger.File | None, Doc("Tarball file")] = None
+
     sbom: Annotated[dagger.Directory, Doc("SBOM directory")]
     tag: Annotated[str, Doc("Image tag")]
     docker_config: Annotated[dagger.File, Doc("Docker config file")]
@@ -28,6 +30,16 @@ class Build:
             return self.crane_
         self.crane_: dagger.Crane = dag.crane(docker_config=self.docker_config)
         return self.crane_
+
+    @function
+    def container(self, platform: dagger.Platform | None = None) -> dagger.Container:
+        """Returns the build container"""
+        return dag.container(platform=platform).import_(self.tarball)
+
+    @function
+    def as_tarball(self) -> dagger.File:
+        """Returns the image tarball"""
+        return self.tarball
 
     @function
     def oci_dir(self) -> dagger.Directory:
@@ -103,7 +115,12 @@ class Build:
         self, tags: Annotated[list[str], Doc("Additional tags"), Name("tag")] = ()
     ) -> Image:
         """Publish multi-arch image"""
-        await self.crane().push(path=self.oci, image=self.tag, index=True)
+        if self.oci:
+            await self.crane().push(path=self.oci, image=self.tag, index=True)
+        else:
+            await self.crane().push_tarball(
+                tarball=self.tarball, image=self.tag, index=True
+            )
         # additionnal tags
         for tag in tags:
             await self.crane().copy(source=self.tag, target=tag)
