@@ -114,7 +114,7 @@ class Apko:
         config: Annotated[dagger.File, Doc("Config file")],
         tag: Annotated[str, Doc("Image tag")],
         arch: Annotated[str, Doc("Architectures to build for")] = "",
-        format_: Annotated[str, Doc("Image format"), Name("format")] = "tarball",
+        format_: Annotated[str, Doc("Image format"), Name("format")] = "oci",
         keyring_append: Annotated[
             dagger.File | None, Doc("Path to extra keys to include in the keyring")
         ] = None,
@@ -139,9 +139,9 @@ class Apko:
             .with_workdir("$APKO_WORK_DIR", expand=True)
         )
 
-        output: str = "${APKO_OUTPUT_DIR}/image.tar"
-        if format_ == "oci":
-            output = "${APKO_OUTPUT_DIR}"
+        output: str = "${APKO_OUTPUT_DIR}"
+        if format_ == "tarball":
+            output = "${APKO_OUTPUT_DIR}/image.tar"
         cmd = [
             "build",
             os.path.join("$APKO_CONFIG_DIR", config_name),
@@ -174,11 +174,11 @@ class Apko:
         if arch:
             cmd.extend(["--arch", arch])
 
-        if format_ == "oci":
+        if format_ == "tarball":
             return Build(
-                oci=apko.with_exec(cmd, use_entrypoint=True, expand=True).directory(
-                    "$APKO_OUTPUT_DIR", expand=True
-                ),
+                tarball=apko.with_exec(cmd, use_entrypoint=True, expand=True)
+                .directory("$APKO_OUTPUT_DIR", expand=True)
+                .file("image.tar"),
                 sbom=apko.with_exec(cmd, use_entrypoint=True, expand=True).directory(
                     "$APKO_SBOM_DIR", expand=True
                 ),
@@ -186,9 +186,9 @@ class Apko:
                 docker_config=self.docker_config(),
             )
         return Build(
-            tarball=apko.with_exec(cmd, use_entrypoint=True, expand=True)
-            .directory("$APKO_OUTPUT_DIR", expand=True)
-            .file("image.tar"),
+            oci=apko.with_exec(cmd, use_entrypoint=True, expand=True).directory(
+                "$APKO_OUTPUT_DIR", expand=True
+            ),
             sbom=apko.with_exec(cmd, use_entrypoint=True, expand=True).directory(
                 "$APKO_SBOM_DIR", expand=True
             ),

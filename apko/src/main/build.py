@@ -79,9 +79,17 @@ class Build:
     ) -> dagger.File:
         """Scan build result using Grype"""
         grype = dag.grype()
-        return grype.scan_directory(
-            source=self.oci,
-            source_type="oci-dir",
+        if self.oci:
+            return grype.scan_directory(
+                source=self.oci,
+                source_type="oci-dir",
+                severity_cutoff=severity_cutoff,
+                fail=fail,
+                output_format=output_format,
+            )
+        return grype.scan_file(
+            source=self.tarball,
+            source_type="oci-archive",
             severity_cutoff=severity_cutoff,
             fail=fail,
             output_format=output_format,
@@ -118,9 +126,7 @@ class Build:
         if self.oci:
             await self.crane().push(path=self.oci, image=self.tag, index=True)
         else:
-            await self.crane().push_tarball(
-                tarball=self.tarball, image=self.tag, index=True
-            )
+            await self.crane().push_tarball(tarball=self.tarball, image=self.tag)
         # additionnal tags
         for tag in tags:
             await self.crane().copy(source=self.tag, target=tag)
