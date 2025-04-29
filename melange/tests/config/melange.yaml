@@ -1,0 +1,36 @@
+package:
+  name: wstunnel
+  version: "10.1.11"
+  epoch: 0
+  description: Wstunnel uses the websocket protocol which is compatible with http in order to bypass firewalls and proxies
+  url: https://github.com/erebe/wstunnel
+  copyright:
+    - license: BSD-3-Clause
+  target-architecture:
+    - aarch64
+    - x86_64
+environment:
+  contents:
+    keyring:
+      - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+    repositories:
+      - https://packages.wolfi.dev/os
+    packages:
+      - busybox
+pipeline:
+  - if: ${{build.arch}} == 'aarch64'
+    uses: fetch
+    with:
+      uri: https://github.com/erebe/wstunnel/releases/download/v${{package.version}}/wstunnel_${{package.version}}_linux_arm64.tar.gz
+      expected-sha256: 53cd153cc77976802e6443cf35a22f0562899f79c209e466663f7fd7966f2a91
+      strip-components: 0
+  - if: ${{build.arch}} == 'x86_64'
+    uses: fetch
+    with:
+      uri: https://github.com/erebe/wstunnel/releases/download/v${{package.version}}/wstunnel_${{package.version}}_linux_amd64.tar.gz
+      expected-sha256: 6b2c9e084d3abaca36e1f1a1e95b2149078deab353e7333ff4e63f563a046e8b
+      strip-components: 0
+  - runs: |
+      install -dm755 "${{targets.destdir}}"/usr/bin
+      install -dm755 "${{targets.destdir}}"/etc/wstunnel
+      install -m755 ${{package.name}} "${{targets.destdir}}"/usr/bin/${{package.name}}

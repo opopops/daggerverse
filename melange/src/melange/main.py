@@ -1,7 +1,7 @@
 from typing import Annotated, Self
 import os
 import dagger
-from dagger import Doc, dag, function, object_type
+from dagger import Doc, Name, dag, function, object_type
 
 
 @object_type
@@ -158,7 +158,9 @@ class Melange:
         ] = None,
         signing_key: Annotated[dagger.File, Doc("Key to use for signing")]
         | None = None,
-        arch: Annotated[str, Doc("Architectures to build for")] = "",
+        archs: Annotated[
+            list[dagger.Platform] | None, Doc("Target architectures"), Name("arch")
+        ] = (dag.default_platform()),
     ) -> dagger.Directory:
         """Build a package from a YAML configuration file"""
         config_name = await config.name()
@@ -217,8 +219,9 @@ class Melange:
             )
             cmd.extend(["--source-dir", "$MELANGE_SRC_DIR"])
 
-        if arch:
-            cmd.extend(["--arch", arch])
+        if archs:
+            for arch in archs:
+                cmd.extend(["--arch", arch.split("/")[1]])
 
         self.container_ = melange.with_exec(
             cmd,
@@ -244,10 +247,12 @@ class Melange:
         signing_key: Annotated[
             dagger.File | None, Doc("Key to use for signing")
         ] = None,
-        arch: Annotated[str, Doc("Architectures to build for")] = "",
+        archs: Annotated[
+            list[dagger.Platform] | None, Doc("Target architectures"), Name("arch")
+        ] = (dag.default_platform()),
     ) -> Self:
         """Build a package from a YAML configuration file (for chaining)"""
         await self.build(
-            config=config, version=version, signing_key=signing_key, arch=arch
+            config=config, version=version, signing_key=signing_key, archs=archs
         )
         return self
