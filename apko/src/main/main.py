@@ -119,7 +119,7 @@ class Apko:
         tag: Annotated[str, Doc("Image tag")],
         archs: Annotated[
             list[dagger.Platform] | None, Doc("Platforms"), Name("arch")
-        ] = (dag.default_platform()),
+        ] = None,
         keyring_append: Annotated[
             dagger.File | None, Doc("Path to extra keys to include in the keyring")
         ] = None,
@@ -173,9 +173,9 @@ class Apko:
             )
             cmd.extend(["--repository-append", "$APKO_REPOSITORY_DIR"])
 
-        if archs:
-            for arch in archs:
-                cmd.extend(["--arch", arch.split("/")[1]])
+        archs = archs or [await dag.default_platform()]
+        for arch in archs:
+            cmd.extend(["--arch", arch.split("/")[1]])
 
         apko = await apko.with_exec(cmd, use_entrypoint=True, expand=True)
         return Build(
@@ -254,9 +254,8 @@ class Apko:
         else:
             cmd.append("--sbom=false")
 
-        if archs:
-            for arch in archs:
-                cmd.extend(["--arch", arch.split("/")[1]])
+        for arch in archs or [await dag.default_platform()]:
+            cmd.extend(["--arch", arch.split("/")[1]])
 
         if local:
             cmd.append("--local")

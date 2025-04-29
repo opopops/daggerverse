@@ -19,7 +19,6 @@ dagger call --progress=plain \
   build \
     --config ./tests/config/apko.yaml  \
     --tag docker.io/${DOCKERHUB_USERNAME}/private:apko \
-    --arch amd64,arm64 \
   with-scan \
     --severity-cutoff critical \
   publish \

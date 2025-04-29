@@ -10,5 +10,9 @@ cd "$MODULE_DIR"
 
 dagger call --progress=plain \
   build \
+    --config ./tests/config/melange.yaml
+
+dagger call --progress=plain \
+  build \
     --config ./tests/config/melange.yaml  \
     --arch amd64,arm64

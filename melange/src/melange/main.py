@@ -71,12 +71,7 @@ class Melange:
         key_size: Annotated[int, Doc("the size of the prime to calculate ")] = 4096,
     ) -> dagger.Directory:
         """Generate a key for package signing"""
-        cmd = [
-            "keygen",
-            "--key-size",
-            str(key_size),
-            "$MELANGE_SIGNING_KEY",
-        ]
+        cmd = ["keygen", "--key-size", str(key_size), "$MELANGE_SIGNING_KEY"]
 
         self.container_ = self.container().with_exec(
             cmd, use_entrypoint=True, expand=True
@@ -123,17 +118,9 @@ class Melange:
             expand=True,
         )
 
-        cmd = [
-            "bump",
-            config_name,
-            version,
-        ]
+        cmd = ["bump", config_name, version]
 
-        self.container_ = melange.with_exec(
-            cmd,
-            use_entrypoint=True,
-            expand=True,
-        )
+        self.container_ = melange.with_exec(cmd, use_entrypoint=True, expand=True)
         return self.container_.file(
             os.path.join("$MELANGE_WORK_DIR", config_name), expand=True
         )
@@ -160,7 +147,7 @@ class Melange:
         | None = None,
         archs: Annotated[
             list[dagger.Platform] | None, Doc("Target architectures"), Name("arch")
-        ] = (dag.default_platform()),
+        ] = None,
     ) -> dagger.Directory:
         """Build a package from a YAML configuration file"""
         config_name = await config.name()
@@ -174,13 +161,7 @@ class Melange:
 
         if version:
             melange = melange.with_exec(
-                [
-                    "bump",
-                    config_name,
-                    version,
-                ],
-                use_entrypoint=True,
-                expand=True,
+                ["bump", config_name, version], use_entrypoint=True, expand=True
             )
 
         if signing_key:
@@ -212,22 +193,15 @@ class Melange:
 
         if source_dir:
             melange = melange.with_mounted_directory(
-                "$MELANGE_SRC_DIR",
-                source=source_dir,
-                owner=self.user,
-                expand=True,
+                "$MELANGE_SRC_DIR", source=source_dir, owner=self.user, expand=True
             )
             cmd.extend(["--source-dir", "$MELANGE_SRC_DIR"])
 
-        if archs:
-            for arch in archs:
-                cmd.extend(["--arch", arch.split("/")[1]])
+        for arch in archs or [await dag.default_platform()]:
+            cmd.extend(["--arch", arch.split("/")[1]])
 
         self.container_ = melange.with_exec(
-            cmd,
-            insecure_root_capabilities=True,
-            use_entrypoint=True,
-            expand=True,
+            cmd, insecure_root_capabilities=True, use_entrypoint=True, expand=True
         )
 
         output_dir: dagger.Directory = self.container_.directory(
@@ -249,7 +223,7 @@ class Melange:
         ] = None,
         archs: Annotated[
             list[dagger.Platform] | None, Doc("Target architectures"), Name("arch")
-        ] = (dag.default_platform()),
+        ] = None,
     ) -> Self:
         """Build a package from a YAML configuration file (for chaining)"""
         await self.build(
