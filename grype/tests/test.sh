@@ -14,3 +14,10 @@ dagger call --progress=plain \
     --severity-cutoff high \
     --output-format table \
   contents
+
+dagger call --progress=plain \
+  scan-file \
+    --source ./tests/files/test.file \
+    --severity-cutoff high \
+    --output-format table \
+  contents
