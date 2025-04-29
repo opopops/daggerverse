@@ -1,5 +1,4 @@
 from typing import Annotated, Self
-from urllib.parse import urlparse
 import dagger
 from dagger import Doc, Name, dag, function, object_type
 
@@ -17,19 +16,6 @@ class Build:
     docker_config: Annotated[dagger.File, Doc("Docker config file")]
 
     container_: dagger.Container | None = None
-    crane_: dagger.Crane | None = None
-
-    def registry(self) -> str:
-        """Retrieves the registry host from tag"""
-        url = urlparse(f"//{self.tag}")
-        return url.netloc
-
-    def crane(self) -> dagger.Crane:
-        """Returns configured Crane"""
-        if self.crane_:
-            return self.crane_
-        self.crane_: dagger.Crane = dag.crane(docker_config=self.docker_config)
-        return self.crane_
 
     @function
     def container(
@@ -37,6 +23,19 @@ class Build:
     ) -> dagger.Container:
         """Returns the build container"""
         return dag.container(platform=platform).import_(self.tarball, tag=tag)
+
+    @function
+    def with_registry_auth(
+        self,
+        username: Annotated[str, Doc("Registry username")],
+        secret: Annotated[dagger.Secret, Doc("Registry password")],
+        address: Annotated[str, Doc("Registry host")] = "docker.io",
+    ) -> Self:
+        """Authenticates with registry"""
+        self.container_ = self.container().with_registry_auth(
+            address=address, username=username, secret=secret
+        )
+        return self
 
     @function
     def as_tarball(self) -> dagger.File:
