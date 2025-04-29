@@ -10,13 +10,13 @@ from .image import Image
 class Build:
     """Apko Build module"""
 
-    oci: Annotated[dagger.Directory | None, Doc("OCI directory")] = None
-    tarball: Annotated[dagger.File | None, Doc("Tarball file")] = None
-
+    tarball: Annotated[dagger.File, Doc("Build Tarball")]
+    archs: Annotated[list[dagger.Platform], Doc("Build Architecture"), Name("arch")]
     sbom: Annotated[dagger.Directory, Doc("SBOM directory")]
     tag: Annotated[str, Doc("Image tag")]
     docker_config: Annotated[dagger.File, Doc("Docker config file")]
 
+    container_: dagger.Container | None = None
     crane_: dagger.Crane | None = None
 
     def registry(self) -> str:
@@ -32,19 +32,16 @@ class Build:
         return self.crane_
 
     @function
-    def container(self, platform: dagger.Platform | None = None) -> dagger.Container:
+    def container(
+        self, platform: dagger.Platform | None = None, tag: str | None = None
+    ) -> dagger.Container:
         """Returns the build container"""
-        return dag.container(platform=platform).import_(self.tarball)
+        return dag.container(platform=platform).import_(self.tarball, tag=tag)
 
     @function
     def as_tarball(self) -> dagger.File:
         """Returns the image tarball"""
         return self.tarball
-
-    @function
-    def oci_dir(self) -> dagger.Directory:
-        """Returns the OCI directory"""
-        return self.oci
 
     @function
     def sbom_dir(self) -> dagger.Directory:
@@ -56,7 +53,7 @@ class Build:
         """Returns the build directory"""
         return (
             dag.directory()
-            .with_directory("oci", self.oci)
+            .with_file("image.tar", self.tarball)
             .with_directory("sbom", self.sbom)
         )
 
@@ -79,14 +76,6 @@ class Build:
     ) -> dagger.File:
         """Scan build result using Grype"""
         grype = dag.grype()
-        if self.oci:
-            return grype.scan_directory(
-                source=self.oci,
-                source_type="oci-dir",
-                severity_cutoff=severity_cutoff,
-                fail=fail,
-                output_format=output_format,
-            )
         return grype.scan_file(
             source=self.tarball,
             source_type="oci-archive",
@@ -123,11 +112,15 @@ class Build:
         self, tags: Annotated[list[str], Doc("Additional tags"), Name("tag")] = ()
     ) -> Image:
         """Publish multi-arch image"""
-        if self.oci:
-            await self.crane().push(path=self.oci, image=self.tag, index=True)
-        else:
-            await self.crane().push_tarball(tarball=self.tarball, image=self.tag)
+        platform_variants: list[dagger.Container] = []
+        for arch in self.archs:
+            platform_variants.append(self.container(platform=arch))
+        await self.container_.publish(
+            address=self.tag, platform_variants=platform_variants
+        )
         # additionnal tags
         for tag in tags:
-            await self.crane().copy(source=self.tag, target=tag)
+            await self.container_.publish(
+                address=tag, platform_variants=platform_variants
+            )
         return Image(address=self.tag, sbom=self.sbom, docker_config=self.docker_config)

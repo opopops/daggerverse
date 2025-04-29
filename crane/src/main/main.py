@@ -241,18 +241,23 @@ class Crane:
         self,
         tarball: Annotated[dagger.File, Doc("Image tarball")],
         image: Annotated[str, Doc("Image tag")],
+        index: Annotated[
+            bool, Doc("Push a collection of images as a single index")
+        ] = False,
         platform: Annotated[str, Doc("Specifies the platform")] = "",
     ) -> str:
         """Push image from tarball"""
         cmd = ["push", "$IMAGE_TARBALL", image]
 
+        if index:
+            cmd.extend(["--index"])
         if platform:
             cmd.extend(["--platform", platform])
 
         container = (
             self.container()
             .with_env_variable("IMAGE_TARBALL", "/tmp/image.tar")
-            .with_file("$IMAGE_TARBALL", tarball, expand=True)
+            .with_file("$IMAGE_TARBALL", tarball, owner=self.user, expand=True)
             .with_exec(cmd, use_entrypoint=True, expand=True)
         )
 

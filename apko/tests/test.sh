@@ -8,7 +8,7 @@ MODULE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 cd "$MODULE_DIR"
 
-dagger call \
+dagger call --progress=plain \
   with-registry-auth \
     --address ghcr.io \
     --username $GITHUB_USERNAME \
@@ -19,10 +19,11 @@ dagger call \
   build \
     --config ./tests/config/apko.yaml  \
     --tag docker.io/${DOCKERHUB_USERNAME}/private:apko \
+    --arch amd64,arm64 \
   with-scan \
     --severity-cutoff critical \
   publish \
-  digest
+  ref
 
 dagger call \
   with-registry-auth \
@@ -36,6 +37,7 @@ dagger call \
     --context ./tests  \
     --config ./tests/config/apko.yaml  \
     --tag docker.io/${DOCKERHUB_USERNAME}/private:apko \
+    --arch amd64,arm64 \
   with-scan \
     --severity-cutoff critical \
-  digest
+  ref
