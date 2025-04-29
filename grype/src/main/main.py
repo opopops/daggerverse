@@ -10,7 +10,7 @@ class Grype:
     image: Annotated[str, Doc("wolfi-base image")] = (
         "cgr.dev/chainguard/wolfi-base:latest"
     )
-    version: Annotated[str, Doc("Grype version")] = "latest"
+    version: Annotated[str, Doc("Grype version")] = "0.87"
     user: Annotated[str, Doc("Image user")] = "65532"
     docker_config: Annotated[dagger.File | None, Doc("Docker config file")] = None
 
@@ -32,6 +32,7 @@ class Grype:
             container.from_(address=self.image)
             .with_env_variable("DOCKER_CONFIG", "/tmp/docker")
             .with_env_variable("GRYPE_DB_CACHE_DIR", "/tmp/cache")
+            .with_env_variable("GRYPE_OUTPUT_DIR", "/tmp/output")
             .with_user("0")
             .with_exec(["apk", "add", "--no-cache", "docker-cli", pkg])
             .with_entrypoint(["/usr/bin/grype"])
@@ -41,6 +42,11 @@ class Grype:
                 dag.cache_volume("grype-db-cache"),
                 sharing=dagger.CacheSharingMode("LOCKED"),
                 owner=self.user,
+                expand=True,
+            )
+            .with_exec(
+                ["mkdir", "-p", "$GRYPE_OUTPUT_DIR", "$DOCKER_CONFIG"],
+                use_entrypoint=False,
                 expand=True,
             )
         )
@@ -97,7 +103,7 @@ class Grype:
         output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
     ) -> dagger.File:
         """Scan"""
-        output_file = f"/tmp/report.{output_format}"
+        output_file = f"$GRYPE_OUTPUT_DIR/report.{output_format}"
         expect = dagger.ReturnType.SUCCESS
         if not fail:
             expect = dagger.ReturnType.ANY
@@ -111,7 +117,7 @@ class Grype:
         container = container.with_exec(
             cmd, use_entrypoint=True, expand=True, expect=expect
         )
-        return container.file(output_file)
+        return container.file(output_file, expand=True)
 
     @function
     def with_scan(
@@ -158,7 +164,7 @@ class Grype:
         output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
     ) -> dagger.File:
         """Scan container image"""
-        output_file = f"/tmp/report.{output_format}"
+        output_file = f"$GRYPE_OUTPUT_DIR/report.{output_format}"
         expect = dagger.ReturnType.SUCCESS
         if not fail:
             expect = dagger.ReturnType.ANY
@@ -178,7 +184,7 @@ class Grype:
         container = container.with_exec(
             cmd, use_entrypoint=True, expand=True, expect=expect
         )
-        return container.file(output_file)
+        return container.file(output_file, expand=True)
 
     @function
     def with_scan_image(
@@ -228,7 +234,7 @@ class Grype:
         output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
     ) -> dagger.File:
         """Scan directory"""
-        output_file = f"/tmp/report.{output_format}"
+        output_file = f"$GRYPE_OUTPUT_DIR/report.{output_format}"
         expect = dagger.ReturnType.SUCCESS
         if not fail:
             expect = dagger.ReturnType.ANY
@@ -255,7 +261,7 @@ class Grype:
             )
             .with_exec(cmd, use_entrypoint=True, expand=True, expect=expect)
         )
-        return container.file(output_file)
+        return container.file(output_file, expand=True)
 
     @function
     def with_scan_directory(
@@ -304,7 +310,7 @@ class Grype:
         output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
     ) -> dagger.File:
         """Scan file"""
-        output_file = f"/tmp/report.{output_format}"
+        output_file = f"$GRYPE_OUTPUT_DIR/report.{output_format}"
         expect = dagger.ReturnType.SUCCESS
         if not fail:
             expect = dagger.ReturnType.ANY
@@ -328,7 +334,7 @@ class Grype:
             )
             .with_exec(cmd, use_entrypoint=True, expand=True, expect=expect)
         )
-        return container.file(output_file)
+        return container.file(output_file, expand=True)
 
     @function
     def with_scan_file(
