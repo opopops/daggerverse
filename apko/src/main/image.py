@@ -1,4 +1,5 @@
 import json
+import dataclasses
 from typing import Annotated, Self
 from urllib.parse import urlparse
 import dagger
@@ -7,48 +8,67 @@ from dagger import Doc, dag, function, object_type
 
 @object_type
 class Image:
-    """Apko Image module"""
+    """Apko Image"""
 
     address: Annotated[str, Doc("Image address")]
-    sbom: Annotated[dagger.Directory, Doc("SBOM directory")]
-    docker_config: Annotated[dagger.File, Doc("Docker config file")]
+    apko: dagger.Container | None = None
 
-    container_: dagger.Container | None = None
+    container_: dagger.Container = dataclasses.field(
+        default_factory=lambda: dag.container()
+    )
 
-    crane_: dagger.Crane | None = None
-    cosign_: dagger.Cosign | None = None
-    grype_: dagger.Grype | None = None
-
-    @function
-    def container(self, platform: dagger.Platform | None = None) -> dagger.Container:
-        """Returns image container"""
-        if self.container_:
-            return self.container_
-
-        container: dagger.Container = dag.container(platform=platform)
-        self.container_ = container.from_(self.address)
-        return self.container_
+    def docker_config(self) -> dagger.File:
+        """Returns the docker config file"""
+        return self.apko.file("${DOCKER_CONFIG}/config.json", expand=True)
 
     def crane(self) -> dagger.Crane:
         """Returns crane"""
-        if self.crane_:
-            return self.crane_
-        self.crane_ = dag.crane(docker_config=self.docker_config)
-        return self.crane_
+        return dag.crane(docker_config=self.docker_config())
 
     def cosign(self) -> dagger.Cosign:
         """Returns cosign"""
-        if self.cosign_:
-            return self.cosign_
-        self.cosign_ = dag.cosign(docker_config=self.docker_config)
-        return self.cosign_
+        return dag.cosign(docker_config=self.docker_config())
 
     def grype(self) -> dagger.Grype:
         """Returns grype"""
-        if self.grype_:
-            return self.grype_
-        self.grype_ = dag.grype(docker_config=self.docker_config)
-        return self.grype_
+        return dag.grype(docker_config=self.docker_config())
+
+    @function
+    def container(self) -> dagger.Container:
+        """Returns image container"""
+        self.container_ = self.container_.from_(self.address)
+        return self.container_
+
+    @function
+    def with_registry_auth(
+        self,
+        username: Annotated[str, Doc("Registry username")],
+        secret: Annotated[dagger.Secret, Doc("Registry password")],
+        address: Annotated[str, Doc("Registry host")] = "docker.io",
+    ) -> Self:
+        """Authenticates with registry"""
+        self.container_ = self.container_.with_registry_auth(
+            address=address, username=username, secret=secret
+        )
+        container: dagger.Container = self.apko
+        cmd = [
+            "sh",
+            "-c",
+            (
+                f"apko login {address}"
+                f" --username {username}"
+                " --password ${REGISTRY_PASSWORD}"
+            ),
+        ]
+        self.apko = container.with_secret_variable(
+            "REGISTRY_PASSWORD", secret
+        ).with_exec(cmd, use_entrypoint=False)
+        return self
+
+    @function
+    def sbom(self) -> dagger.Directory:
+        """Returns the SBOM directory"""
+        return self.apko.directory("$APKO_SBOM_DIR", expand=True)
 
     @function
     async def platforms(self) -> list[dagger.Platform]:
@@ -64,11 +84,6 @@ class Image:
             os = platform["os"]
             platforms.append(dagger.Platform(f"{os}/{architecture}"))
         return platforms
-
-    @function
-    def sbom_dir(self) -> dagger.Directory:
-        """Returns the SBOM directory"""
-        return self.sbom
 
     @function
     async def ref(self) -> str:

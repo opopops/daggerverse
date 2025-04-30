@@ -1,5 +1,5 @@
 import asyncio
-from typing import Annotated
+from typing import Annotated, Self
 
 import dagger
 from dagger import DefaultPath, Doc, Name, dag, function, object_type
@@ -9,22 +9,29 @@ from .build import Build
 
 @object_type
 class Docker:
-    """Docker CLI"""
+    """Docker"""
 
-    registry: Annotated[str, Doc("Registry host")] = "docker.io"
-    registry_username: Annotated[str, Doc("Registry username")] = ""
-    registry_password: Annotated[dagger.Secret | None, Doc("Registry password")] = None
+    container_: dagger.Container | None = None
 
     def container(self, platform: dagger.Platform | None = None) -> dagger.Container:
-        """Returns authentcated Docker container"""
-        container: dagger.Container = dag.container(platform=platform)
-        if self.registry_username is not None and self.registry_password is not None:
-            container = container.with_registry_auth(
-                address=self.registry,
-                username=self.registry_username,
-                secret=self.registry_password,
-            )
-        return container
+        """Returns authentcated container"""
+        if self.container_:
+            return self.container_
+        self.container_ = dag.container(platform=platform)
+        return self.container_
+
+    @function
+    async def with_registry_auth(
+        self,
+        username: Annotated[str, Doc("Registry username")],
+        secret: Annotated[dagger.Secret, Doc("Registry password")],
+        address: Annotated[str, Doc("Registry host")] = "docker.io",
+    ) -> Self:
+        """Authenticate with registry"""
+        self.container_ = self.container().with_registry_auth(
+            address=address, username=username, secret=secret
+        )
+        return self
 
     @function
     async def build(
@@ -89,7 +96,7 @@ class Docker:
                 for platform in platforms:
                     tg.create_task(
                         build_(
-                            container=self.container(platform=platform),
+                            container=dag.container(platform=platform),
                             context=workspace,
                             dockerfile="dagger.Dockerfile",
                             target=target,
@@ -107,9 +114,4 @@ class Docker:
                     secrets=secrets,
                 )
             )
-        return Build(
-            platform_variants=platform_variants,
-            registry=self.registry,
-            registry_username=self.registry_username,
-            registry_password=self.registry_password,
-        )
+        return Build(platform_variants=platform_variants, container_=self.container())

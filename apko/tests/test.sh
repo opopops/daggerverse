@@ -9,33 +9,19 @@ MODULE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "$MODULE_DIR"
 
 dagger call --progress=plain \
-  with-registry-auth \
-    --address ghcr.io \
-    --username $GITHUB_USERNAME \
-    --secret env:GITHUB_TOKEN \
-  with-registry-auth \
-    --username $DOCKERHUB_USERNAME \
-    --secret env:DOCKERHUB_TOKEN \
   build \
     --config ./tests/config/apko.yaml  \
-    --tag docker.io/${DOCKERHUB_USERNAME}/private:apko \
+    --tag ttl.sh/opopops-daggerverse-apko:1h \
   with-scan \
     --severity-cutoff critical \
   publish \
   ref
 
-dagger call \
-  with-registry-auth \
-    --address ghcr.io \
-    --username $GITHUB_USERNAME \
-    --secret env:GITHUB_TOKEN \
-  with-registry-auth \
-    --username $DOCKERHUB_USERNAME \
-    --secret env:DOCKERHUB_TOKEN \
+dagger call --progress=plain \
   publish \
     --context ./tests  \
     --config ./tests/config/apko.yaml  \
-    --tag docker.io/${DOCKERHUB_USERNAME}/private:apko \
+    --tag ttl.sh/opopops-daggerverse-apko:1h \
     --arch amd64,arm64 \
   with-scan \
     --severity-cutoff critical \

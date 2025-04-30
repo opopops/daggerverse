@@ -1,5 +1,6 @@
 from typing import Annotated, Self
 import os
+import dataclasses
 import dagger
 from dagger import DefaultPath, Doc, Name, dag, function, object_type
 
@@ -17,24 +18,16 @@ class Apko:
     version: Annotated[str, Doc("Apko version")] = "latest"
     user: Annotated[str, Doc("Image user")] = "65532"
 
-    container_: dagger.Container | None = None
-    apko_container_: dagger.Container | None = None
-
-    def docker_config(self) -> dagger.File:
-        """Returns the docker config file"""
-        return self.apko_container().file("${DOCKER_CONFIG}/config.json", expand=True)
-
-    def container(self) -> dagger.Container:
-        """Returns container"""
-        if self.container_:
-            return self.container_
-        return dag.container()
+    container_: dagger.Container = dataclasses.field(
+        default_factory=lambda: dag.container()
+    )
+    apko_: dagger.Container | None = None
 
     @function(name="container")
-    def apko_container(self) -> dagger.Container:
-        """Returns apko container"""
-        if self.apko_container_:
-            return self.apko_container_
+    def apko(self) -> dagger.Container:
+        """Returns the apko container"""
+        if self.apko_:
+            return self.apko_
 
         container: dagger.Container = dag.container()
 
@@ -42,7 +35,7 @@ class Apko:
         if self.version != "latest":
             pkg = f"{pkg}~{self.version}"
 
-        self.apko_container_ = (
+        self.apko_ = (
             container.from_(address=self.image)
             .with_user("0")
             .with_exec(["apk", "add", "--no-cache", pkg])
@@ -81,7 +74,7 @@ class Apko:
                 expand=True,
             )
         )
-        return self.apko_container_
+        return self.apko_
 
     @function
     def with_registry_auth(
@@ -91,10 +84,10 @@ class Apko:
         address: Annotated[str, Doc("Registry host")] = "docker.io",
     ) -> Self:
         """Authenticates with registry"""
-        self.container_ = self.container().with_registry_auth(
+        self.container_ = self.container_.with_registry_auth(
             address=address, username=username, secret=secret
         )
-        container: dagger.Container = self.apko_container()
+        container: dagger.Container = self.apko()
         cmd = [
             "sh",
             "-c",
@@ -104,7 +97,7 @@ class Apko:
                 " --password ${REGISTRY_PASSWORD}"
             ),
         ]
-        self.apko_container_ = container.with_secret_variable(
+        self.apko_ = container.with_secret_variable(
             "REGISTRY_PASSWORD", secret
         ).with_exec(cmd, use_entrypoint=False)
         return self
@@ -117,7 +110,7 @@ class Apko:
         ],
         config: Annotated[dagger.File, Doc("Config file")],
         tag: Annotated[str, Doc("Image tag")],
-        archs: Annotated[
+        platforms: Annotated[
             list[dagger.Platform] | None, Doc("Platforms"), Name("arch")
         ] = None,
         keyring_append: Annotated[
@@ -131,7 +124,7 @@ class Apko:
         config_name = await config.name()
 
         apko = (
-            self.apko_container()
+            self.apko()
             .with_mounted_file(
                 path=os.path.join("$APKO_CONFIG_DIR", config_name),
                 source=config,
@@ -173,17 +166,21 @@ class Apko:
             )
             cmd.extend(["--repository-append", "$APKO_REPOSITORY_DIR"])
 
-        archs = archs or [await dag.default_platform()]
-        for arch in archs:
-            cmd.extend(["--arch", arch.split("/")[1]])
+        platforms = platforms or [await dag.default_platform()]
+        for platform in platforms:
+            cmd.extend(["--arch", platform.split("/")[1]])
 
         apko = await apko.with_exec(cmd, use_entrypoint=True, expand=True)
+        tarball = apko.directory("$APKO_OUTPUT_DIR", expand=True).file("image.tar")
+
+        platform_variants: list[dagger.Container] = []
+        for platform in platforms:
+            platform_variants.append(dag.container(platform=platform).import_(tarball))
+
         return Build(
-            tarball=apko.directory("$APKO_OUTPUT_DIR", expand=True).file("image.tar"),
-            archs=archs,
-            sbom=apko.directory("$APKO_SBOM_DIR", expand=True),
+            platform_variants=platform_variants,
             tag=tag,
-            docker_config=self.docker_config(),
+            apko=apko,
             container_=self.container_,
         )
 
@@ -196,7 +193,7 @@ class Apko:
         config: Annotated[dagger.File, Doc("Config file")],
         tags: Annotated[list[str], Doc("Image tags"), Name("tag")],
         sbom: Annotated[bool, Doc("generate an SBOM")] = True,
-        archs: Annotated[
+        platforms: Annotated[
             list[dagger.Platform] | None, Doc("Platforms"), Name("arch")
         ] = None,
         local: Annotated[
@@ -213,7 +210,7 @@ class Apko:
         config_name = await config.name()
 
         apko = (
-            self.apko_container()
+            self.apko()
             .with_mounted_file(
                 path=os.path.join("$APKO_CONFIG_DIR", config_name),
                 source=config,
@@ -254,15 +251,12 @@ class Apko:
         else:
             cmd.append("--sbom=false")
 
-        for arch in archs or [await dag.default_platform()]:
-            cmd.extend(["--arch", arch.split("/")[1]])
+        platforms = platforms or [await dag.default_platform()]
+        for platform in platforms:
+            cmd.extend(["--arch", platform.split("/")[1]])
 
         if local:
             cmd.append("--local")
 
         apko = await apko.with_exec(cmd, use_entrypoint=True, expand=True)
-        return Image(
-            address=tags[0],
-            sbom=apko.directory("$APKO_SBOM_DIR", expand=True),
-            docker_config=self.docker_config(),
-        )
+        return Image(address=tags[0], apko=apko, container_=self.container_)

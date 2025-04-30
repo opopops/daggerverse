@@ -8,9 +8,7 @@ MODULE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 cd "$MODULE_DIR"
 
-dagger call \
-    --registry-username $DOCKERHUB_USERNAME \
-    --registry-password env:DOCKERHUB_TOKEN \
+dagger call --progress=plain \
   build \
     --context ./tests  \
     --file ./tests/files/Dockerfile \
@@ -18,7 +16,5 @@ dagger call \
   with-scan \
     --severity-cutoff critical \
   publish \
-    --image docker.io/${DOCKERHUB_USERNAME}/private:docker \
-  with-tag \
-    --tag latest \
+    --image ttl.sh/opopops-daggerverse-docker \
   ref

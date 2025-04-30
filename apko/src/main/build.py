@@ -1,4 +1,5 @@
 from typing import Annotated, Self
+import dataclasses
 import dagger
 from dagger import Doc, Name, dag, function, object_type
 
@@ -7,22 +8,15 @@ from .image import Image
 
 @object_type
 class Build:
-    """Apko Build module"""
+    """Apko Build"""
 
-    tarball: Annotated[dagger.File, Doc("Build Tarball")]
-    archs: Annotated[list[dagger.Platform], Doc("Build Architecture"), Name("arch")]
-    sbom: Annotated[dagger.Directory, Doc("SBOM directory")]
+    platform_variants: Annotated[list[dagger.Container], Doc("Platform variants")]
     tag: Annotated[str, Doc("Image tag")]
-    docker_config: Annotated[dagger.File, Doc("Docker config file")]
+    apko: dagger.Container
 
-    container_: dagger.Container | None = None
-
-    @function
-    def container(
-        self, platform: dagger.Platform | None = None, tag: str | None = None
-    ) -> dagger.Container:
-        """Returns the build container"""
-        return dag.container(platform=platform).import_(self.tarball, tag=tag)
+    container_: dagger.Container = dataclasses.field(
+        default_factory=lambda: dag.container()
+    )
 
     @function
     def with_registry_auth(
@@ -32,29 +26,38 @@ class Build:
         address: Annotated[str, Doc("Registry host")] = "docker.io",
     ) -> Self:
         """Authenticates with registry"""
-        self.container_ = self.container().with_registry_auth(
+        self.container_ = self.container_.with_registry_auth(
             address=address, username=username, secret=secret
         )
         return self
 
     @function
+    async def platforms(self) -> list[dagger.Platform]:
+        """Retrieves build platforms"""
+        platforms: list[dagger.Platform] = []
+        for platform_variant in self.platform_variants:
+            platforms.append(await platform_variant.platform())
+        return platforms
+
+    @function(name="container")
+    async def platform_container(
+        self, platform: dagger.Platform | None = None
+    ) -> dagger.Container:
+        """Returns the build container"""
+        platform = platform or await dag.default_platform()
+        for platform_variant in self.platform_variants:
+            if platform_variant.platform() == platform:
+                return platform_variant
+
+    @function
     def as_tarball(self) -> dagger.File:
         """Returns the image tarball"""
-        return self.tarball
+        return self.container_.as_tarball(platform_variants=self.platform_variants)
 
     @function
-    def sbom_dir(self) -> dagger.Directory:
+    def sbom(self) -> dagger.Directory:
         """Returns the SBOM directory"""
-        return self.sbom
-
-    @function
-    def build_dir(self) -> dagger.Directory:
-        """Returns the build directory"""
-        return (
-            dag.directory()
-            .with_file("image.tar", self.tarball)
-            .with_directory("sbom", self.sbom)
-        )
+        return self.apko.directory("$APKO_SBOM_DIR", expand=True)
 
     @function
     def scan(
@@ -76,7 +79,7 @@ class Build:
         """Scan build result using Grype"""
         grype = dag.grype()
         return grype.scan_file(
-            source=self.tarball,
+            source=self.as_tarball(),
             source_type="oci-archive",
             severity_cutoff=severity_cutoff,
             fail=fail,
@@ -111,15 +114,12 @@ class Build:
         self, tags: Annotated[list[str], Doc("Additional tags"), Name("tag")] = ()
     ) -> Image:
         """Publish multi-arch image"""
-        platform_variants: list[dagger.Container] = []
-        for arch in self.archs:
-            platform_variants.append(self.container(platform=arch))
         await self.container_.publish(
-            address=self.tag, platform_variants=platform_variants
+            address=self.tag, platform_variants=self.platform_variants
         )
         # additionnal tags
         for tag in tags:
             await self.container_.publish(
-                address=tag, platform_variants=platform_variants
+                address=tag, platform_variants=self.platform_variants
             )
-        return Image(address=self.tag, sbom=self.sbom, docker_config=self.docker_config)
+        return Image(address=self.tag, apko=self.apko, container_=self.container_)

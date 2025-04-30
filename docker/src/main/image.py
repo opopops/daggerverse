@@ -1,6 +1,7 @@
 import json
 from typing import Annotated, Self
 from urllib.parse import urlparse
+import dataclasses
 
 import dagger
 from dagger import Doc, dag, function, object_type
@@ -12,66 +13,47 @@ class Image:
 
     address: Annotated[str, Doc("Image address")]
 
-    registry_username: Annotated[str, Doc("Registry username")] = ""
-    registry_password: Annotated[dagger.Secret, Doc("Registry password")] = ""
+    container_: dagger.Container = dataclasses.field(
+        default_factory=lambda: dag.container()
+    )
 
-    container_: dagger.Container | None = None
+    crane_: dagger.Crane = dataclasses.field(default_factory=lambda: dag.crane())
+    cosign_: dagger.Cosign = dataclasses.field(default_factory=lambda: dag.cosign())
+    grype_: dagger.Grype = dataclasses.field(default_factory=lambda: dag.grype())
 
     @function
     def container(self) -> dagger.Container:
-        """Returns authenticated container"""
-        if self.container_:
-            return self.container_
-        container: dagger.Container = dag.container()
-        if self.registry_username is not None and self.registry_password is not None:
-            container = container.with_registry_auth(
-                address=self.address,
-                username=self.registry_username,
-                secret=self.registry_password,
-            )
-        self.container_ = container.from_(self.address)
+        """Returns image container"""
+        self.container_ = self.container_.from_(self.address)
         return self.container_
 
-    async def crane(self) -> dagger.Crane:
-        """Returns authenticated crane"""
-        crane: dagger.Crane = dag.crane()
-        if self.registry_username is not None and self.registry_password is not None:
-            crane = crane.with_registry_auth(
-                address=await self.registry(),
-                username=self.registry_username,
-                secret=self.registry_password,
-            )
-        return crane
-
-    async def cosign(self) -> dagger.Cosign:
-        """Returns authenticated cosign"""
-        cosign: dagger.Cosign = dag.cosign()
-        if self.registry_username is not None and self.registry_password is not None:
-            cosign = cosign.with_registry_auth(
-                address=await self.registry(),
-                username=self.registry_username,
-                secret=self.registry_password,
-            )
-        return cosign
-
-    async def grype(self) -> dagger.Grype:
-        """Returns authenticated grype"""
-        grype: dagger.Grype = dag.grype()
-        if self.registry_username is not None and self.registry_password is not None:
-            grype = grype.with_registry_auth(
-                address=await self.registry(),
-                username=self.registry_username,
-                secret=self.registry_password,
-            )
-        return grype
+    @function
+    async def with_registry_auth(
+        self,
+        username: Annotated[str, Doc("Registry username")],
+        secret: Annotated[dagger.Secret, Doc("Registry password")],
+        address: Annotated[str, Doc("Registry host")] = "docker.io",
+    ) -> Self:
+        """Authenticate with registry"""
+        self.container_ = self.container_.with_registry_auth(
+            address=address, username=username, secret=secret
+        )
+        self.crane_ = self.crane_.with_registry_auth(
+            address=address, username=username, secret=secret
+        )
+        self.cosign_ = self.cosign_.with_registry_auth(
+            address=address, username=username, secret=secret
+        )
+        self.grype_ = self.grype_.with_registry_auth(
+            address=address, username=username, secret=secret
+        )
+        return self
 
     @function
     async def platforms(self) -> list[dagger.Platform]:
         """Retrieves image platforms"""
         platforms: list[dagger.Platform] = []
-        crane = await self.crane()
-
-        manifest = json.loads(await crane.manifest(image=self.address))
+        manifest = json.loads(await self.crane_.manifest(image=self.address))
 
         for entry in manifest.get("manifests", []):
             platform = entry["platform"]
@@ -88,8 +70,7 @@ class Image:
     @function
     async def digest(self) -> str:
         """Retrieves the image digest"""
-        crane = await self.crane()
-        return await crane.digest(image=self.address)
+        return await self.crane_.digest(image=self.address)
 
     @function
     async def registry(self) -> str:
@@ -100,8 +81,7 @@ class Image:
     @function
     async def tag(self, tag: Annotated[str, Doc("Tag")]) -> str:
         """Tag image"""
-        crane = await self.crane()
-        return await crane.tag(image=self.address, tag=tag)
+        return await self.crane_.tag(image=self.address, tag=tag)
 
     @function
     async def with_tag(self, tag: Annotated[str, Doc("Tag")]) -> Self:
@@ -127,8 +107,7 @@ class Image:
         output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
     ) -> dagger.File:
         """Scan image using Grype"""
-        grype = await self.grype()
-        return grype.scan_image(
+        return self.grype_.scan_image(
             source=self.address,
             severity_cutoff=severity_cutoff,
             fail=fail,
@@ -178,8 +157,7 @@ class Image:
         | None = True,
     ) -> str:
         """Sign image with Cosign"""
-        cosign = self.cosign()
-        return await cosign.sign(
+        return await self.cosign_.sign(
             image=await self.ref(),
             private_key=private_key,
             password=password,

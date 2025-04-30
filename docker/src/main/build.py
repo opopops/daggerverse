@@ -1,5 +1,5 @@
 from typing import Annotated, Self
-
+import dataclasses
 import dagger
 from dagger import Doc, dag, function, object_type
 
@@ -12,26 +12,10 @@ class Build:
 
     platform_variants: Annotated[list[dagger.Container], Doc("Platform variants build")]
 
-    registry: Annotated[str, Doc("Registry host")] = "docker.io"
-    registry_username: Annotated[str, Doc("Registry username")] = ""
-    registry_password: Annotated[dagger.Secret, Doc("Registry password")] = ""
-
-    build_container_: dagger.Container | None = None
+    container_: dagger.Container = dataclasses.field(
+        default_factory=lambda: dag.container()
+    )
     platform_container_: dagger.Container | None = None
-
-    def build_container(self) -> dagger.Container:
-        """Returns the build container"""
-        if self.build_container_:
-            return self.build_container_
-        container: dagger.Container = dag.container()
-        if self.registry_username is not None and self.registry_password is not None:
-            container = container.with_registry_auth(
-                address=self.registry,
-                username=self.registry_username,
-                secret=self.registry_password,
-            )
-        self.build_container_ = container
-        return self.build_container_
 
     @function
     async def platforms(self) -> list[dagger.Platform]:
@@ -60,8 +44,7 @@ class Build:
         address: Annotated[str, Doc("Registry host")] = "docker.io",
     ) -> Self:
         """Authenticate with registry"""
-        container: dagger.Container = self.build_container()
-        self.build_container_ = container.with_registry_auth(
+        self.container_ = self.container_.with_registry_auth(
             address=address, username=username, secret=secret
         )
         return self
@@ -131,12 +114,8 @@ class Build:
     async def publish(self, image: Annotated[str, Doc("Image tags")]) -> Image:
         """Publish multi-arch image"""
         ref: str = None
-        container: dagger.Container = self.build_container()
+        container: dagger.Container = self.container_
         ref = await container.publish(
             address=image, platform_variants=self.platform_variants
         )
-        return Image(
-            address=ref,
-            registry_username=self.registry_username,
-            registry_password=self.registry_password,
-        )
+        return Image(address=ref, container_=self.container_)
