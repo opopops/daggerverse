@@ -7,7 +7,7 @@ from dagger import Doc, Name, dag, function, object_type
 
 @object_type
 class Helm:
-    """Helm module"""
+    """Helm"""
 
     image: Annotated[str, Doc("wolfi-base image")] = (
         "cgr.dev/chainguard/wolfi-base:latest"
@@ -73,7 +73,7 @@ class Helm:
     @function
     async def lint(
         self,
-        path: Annotated[dagger.Directory, Doc("Path to the chart")],
+        source: Annotated[dagger.Directory, Doc("Chart directory")],
         strict: Annotated[bool, Doc("Fail on lint warnings")] = False,
         quiet: Annotated[bool, Doc("Print only warnings and errors")] = False,
     ) -> str:
@@ -81,7 +81,7 @@ class Helm:
         container: dagger.Container = (
             self.container()
             .with_env_variable("HELM_CHART_PATH", "/tmp/chart")
-            .with_directory("$HELM_CHART_PATH", path, expand=True)
+            .with_directory("$HELM_CHART_PATH", source, expand=True)
             .with_workdir("$HELM_CHART_PATH", expand=True)
         )
 
@@ -96,18 +96,18 @@ class Helm:
     @function
     async def with_lint(
         self,
-        path: Annotated[dagger.Directory, Doc("Path to the chart")],
+        source: Annotated[dagger.Directory, Doc("Chart directory")],
         strict: Annotated[bool, Doc("Fail on lint warnings")] = False,
         quiet: Annotated[bool, Doc("Print only warnings and errors")] = False,
     ) -> Self:
         """Verify that the chart is well-formed (for chaining)"""
-        await self.lint(path=path, strict=strict, quiet=quiet)
+        await self.lint(source=source, strict=strict, quiet=quiet)
         return self
 
     @function
     async def template(
         self,
-        path: Annotated[dagger.Directory, Doc("Path to the chart")],
+        source: Annotated[dagger.Directory, Doc("Chart directory")],
         show_only: Annotated[
             list[str] | None,
             Doc("Only show manifests rendered from the given templates"),
@@ -140,7 +140,7 @@ class Helm:
         container: dagger.Container = (
             self.container()
             .with_env_variable("HELM_CHART_PATH", "/tmp/chart")
-            .with_directory("$HELM_CHART_PATH", path, expand=True)
+            .with_directory("$HELM_CHART_PATH", source, expand=True)
             .with_workdir("$HELM_CHART_PATH", expand=True)
         )
 
@@ -163,7 +163,7 @@ class Helm:
     @function
     async def package(
         self,
-        path: Annotated[dagger.Directory, Doc("Path to the chart")],
+        source: Annotated[dagger.Directory, Doc("Chart directory")],
         app_version: Annotated[
             str, Doc("Set the appVersion on the chart to this version")
         ] = "",
@@ -177,7 +177,7 @@ class Helm:
             self.container()
             .with_env_variable("HELM_CHART_PATH", "/tmp/chart")
             .with_env_variable("HELM_CHART_DEST_PATH", "/tmp/dest")
-            .with_directory("$HELM_CHART_PATH", path, owner=self.user, expand=True)
+            .with_directory("$HELM_CHART_PATH", source, owner=self.user, expand=True)
             .with_workdir("$HELM_CHART_PATH", expand=True)
         )
 
@@ -199,7 +199,7 @@ class Helm:
     @function
     async def push(
         self,
-        chart: Annotated[dagger.File, Doc("Path to the chart")],
+        chart: Annotated[dagger.File, Doc("Chart archive")],
         registry: Annotated[str, Doc("Registry host")],
         username: Annotated[str, Doc("Registry username")] = "",
         password: Annotated[dagger.Secret | None, Doc("Registry password")] = None,
@@ -236,7 +236,7 @@ class Helm:
     @function
     async def package_push(
         self,
-        path: Annotated[dagger.Directory, Doc("Path to the chart")],
+        source: Annotated[dagger.Directory, Doc("Chart directory")],
         registry: Annotated[str, Doc("Registry host")],
         username: Annotated[str, Doc("Registry username")] = "",
         password: Annotated[dagger.Secret | None, Doc("Registry password")] = None,
@@ -254,7 +254,7 @@ class Helm:
         """Packages a chart an push it to the registry"""
 
         chart: dagger.File = await self.package(
-            path=path,
+            source=source,
             app_version=app_version,
             version=version,
             dependency_update=dependency_update,
