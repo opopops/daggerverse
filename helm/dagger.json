@@ -3,5 +3,11 @@
   "engineVersion": "v0.18.5",
   "sdk": {
     "source": "python"
-  }
+  },
+  "dependencies": [
+    {
+      "name": "crane",
+      "source": "../crane"
+    }
+  ]
 }

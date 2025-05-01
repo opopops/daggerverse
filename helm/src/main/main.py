@@ -4,6 +4,8 @@ from urllib.parse import urlparse
 import dagger
 from dagger import Doc, Name, dag, function, object_type
 
+import yaml
+
 
 @object_type
 class Helm:
@@ -16,6 +18,10 @@ class Helm:
     user: Annotated[str, Doc("Image user")] = "65532"
 
     container_: dagger.Container | None = None
+
+    def helm_registry_config(self) -> dagger.File:
+        """Returns the docker config file"""
+        return self.container_.file("$HELM_REGISTRY_CONFIG", expand=True)
 
     @function
     def container(self) -> dagger.Container:
@@ -34,6 +40,21 @@ class Helm:
             .with_exec(["apk", "add", "--no-cache", "kubectl", pkg])
             .with_entrypoint(["/usr/bin/helm"])
             .with_user(self.user)
+            .with_env_variable(
+                "HELM_REGISTRY_CONFIG", "/tmp/helm/registry/config.json", expand=True
+            )
+            .with_exec(
+                ["mkdir", "-p", "/tmp/helm/registry"],
+                use_entrypoint=False,
+                expand=True,
+            )
+            .with_new_file(
+                "$HELM_REGISTRY_CONFIG",
+                contents="",
+                owner=self.user,
+                permissions=0o600,
+                expand=True,
+            )
         )
 
         return self.container_
@@ -221,6 +242,11 @@ class Helm:
             .with_file("$HELM_CHART", chart, owner=self.user, expand=True)
         )
 
+        cmd = ["show", "chart", "$HELM_CHART"]
+        info = yaml.safe_load(
+            await container.with_exec(cmd, use_entrypoint=True, expand=True).stdout()
+        )
+
         oci_registry: str = None
         if registry.startswith("oci://"):
             oci_registry = registry
@@ -231,7 +257,12 @@ class Helm:
         if plain_http:
             cmd.extend(["--plain-http"])
 
-        return await container.with_exec(cmd, use_entrypoint=True, expand=True).stdout()
+        container.with_exec(cmd, use_entrypoint=True, expand=True)
+        image: str = f"{registry}/{info.get('name')}:{info.get('version')}"
+        digest: str = await dag.crane(docker_config=self.helm_registry_config()).digest(
+            image
+        )
+        return f"{image}@{digest}"
 
     @function
     async def package_push(
