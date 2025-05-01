@@ -76,7 +76,9 @@ class Crane:
     async def manifest(
         self,
         image: Annotated[str, Doc("Image")],
-        platform: Annotated[str, Doc("Specifies the platform")] = "",
+        platform: Annotated[
+            dagger.Platform | None, Doc("Specifies the platform")
+        ] = None,
     ) -> str:
         """Get the manifest of an image"""
         container: dagger.Container = self.container()
@@ -91,7 +93,9 @@ class Crane:
     async def digest(
         self,
         image: Annotated[str, Doc("Image")],
-        platform: Annotated[str, Doc("Specifies the platform")] = "",
+        platform: Annotated[
+            dagger.Platform | None, Doc("Specifies the platform")
+        ] = None,
         full_ref: Annotated[
             bool, Doc("Print the full image reference by digest")
         ] = False,
@@ -119,7 +123,9 @@ class Crane:
         self,
         source: Annotated[str, Doc("Source image")],
         target: Annotated[str, Doc("Target image")],
-        platform: Annotated[str, Doc("Specifies the platform")] = "",
+        platform: Annotated[
+            dagger.Platform | None, Doc("Specifies the platform")
+        ] = None,
         jobs: Annotated[
             int | None, Doc("The maximum number of concurrent copies")
         ] = None,
@@ -150,7 +156,9 @@ class Crane:
         self,
         source: Annotated[str, Doc("Source image")],
         target: Annotated[str, Doc("Target image")],
-        platform: Annotated[str, Doc("Specifies the platform")] = "",
+        platform: Annotated[
+            dagger.Platform | None, Doc("Specifies the platform")
+        ] = None,
         jobs: Annotated[int, Doc("The maximum number of concurrent copies")]
         | None = None,
         all_tags: Annotated[bool, Doc("Copy all tags from SRC to DST")] = False,
@@ -174,7 +182,9 @@ class Crane:
         self,
         image: Annotated[str, Doc("Image")],
         tag: Annotated[str, Doc("New tag")],
-        platform: Annotated[str, Doc("Specifies the platform")] = "",
+        platform: Annotated[
+            dagger.Platform | None, Doc("Specifies the platform")
+        ] = None,
     ) -> str:
         """Tag remote image without downloading it."""
         cmd = ["tag", image, tag]
@@ -189,7 +199,9 @@ class Crane:
         self,
         image: Annotated[str, Doc("Image")],
         tag: Annotated[str, Doc("New tag")],
-        platform: Annotated[str, Doc("Specifies the platform")] = "",
+        platform: Annotated[
+            dagger.Platform | None, Doc("Specifies the platform")
+        ] = None,
     ) -> Self:
         """Tag remote image without downloading it (For chaining)."""
         await self.tag(image=image, tag=tag, platform=platform)
@@ -203,7 +215,9 @@ class Crane:
         index: Annotated[
             bool, Doc("Push a collection of images as a single index")
         ] = False,
-        platform: Annotated[str, Doc("Specifies the platform")] = "",
+        platform: Annotated[
+            dagger.Platform | None, Doc("Specifies the platform")
+        ] = None,
     ) -> str:
         """Push image from OCI layout dir"""
         cmd = ["push", "$IMAGE_PATH", image]
@@ -230,7 +244,9 @@ class Crane:
         index: Annotated[
             bool, Doc("Push a collection of images as a single index")
         ] = False,
-        platform: Annotated[str, Doc("Specifies the platform")] = "",
+        platform: Annotated[
+            dagger.Platform | None, Doc("Specifies the platform")
+        ] = None,
     ) -> Self:
         """Push image from OCI layout dir (For chaining)"""
         await self.push(path=path, image=image, index=index, platform=platform)
@@ -244,7 +260,9 @@ class Crane:
         index: Annotated[
             bool, Doc("Push a collection of images as a single index")
         ] = False,
-        platform: Annotated[str, Doc("Specifies the platform")] = "",
+        platform: Annotated[
+            dagger.Platform | None, Doc("Specifies the platform")
+        ] = None,
     ) -> str:
         """Push image from tarball"""
         cmd = ["push", "$IMAGE_TARBALL", image]
@@ -268,7 +286,9 @@ class Crane:
         self,
         tarball: Annotated[dagger.File, Doc("Image tarball")],
         image: Annotated[str, Doc("Image tag")],
-        platform: Annotated[str, Doc("Specifies the platform")] = "",
+        platform: Annotated[
+            dagger.Platform | None, Doc("Specifies the platform")
+        ] = None,
     ) -> Self:
         """Push image from tarball (For chaining)"""
         await self.push_tarball(tarball=tarball, image=image, platform=platform)
