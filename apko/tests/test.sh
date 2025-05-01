@@ -19,7 +19,7 @@ dagger call --progress=plain \
 
 dagger call --progress=plain \
   publish \
-    --context ./tests  \
+    --source ./tests  \
     --config ./tests/config/apko.yaml  \
     --tag ttl.sh/opopops/daggerverse-apko:1h \
     --arch amd64,arm64 \

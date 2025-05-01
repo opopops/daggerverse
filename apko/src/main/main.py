@@ -106,7 +106,7 @@ class Apko:
     async def build(
         self,
         workdir: Annotated[
-            dagger.Directory, DefaultPath("/"), Doc("Working dir"), Name("context")
+            dagger.Directory, DefaultPath("/"), Doc("Working dir"), Name("source")
         ],
         config: Annotated[dagger.File, Doc("Config file")],
         tag: Annotated[str, Doc("Image tag")],
@@ -183,7 +183,7 @@ class Apko:
     async def publish(
         self,
         workdir: Annotated[
-            dagger.Directory, DefaultPath("/"), Doc("Working dir"), Name("context")
+            dagger.Directory, DefaultPath("/"), Doc("Working dir"), Name("source")
         ],
         config: Annotated[dagger.File, Doc("Config file")],
         tags: Annotated[list[str], Doc("Image tags"), Name("tag")],
