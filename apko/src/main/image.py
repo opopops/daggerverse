@@ -140,12 +140,9 @@ class Image:
         severity_cutoff: (
             Annotated[
                 str,
-                Doc(
-                    """Specify the minimum vulnerability severity to trigger an "error" level ACS result"""
-                ),
+                Doc("Specify the minimum vulnerability severity to trigger an error"),
             ]
-            | None
-        ) = None,
+        ) = "",
         fail: Annotated[
             bool, Doc("Set to false to avoid failing based on severity-cutoff")
         ] = True,
@@ -166,12 +163,9 @@ class Image:
         severity_cutoff: (
             Annotated[
                 str,
-                Doc(
-                    """Specify the minimum vulnerability severity to trigger an "error" level ACS result"""
-                ),
+                Doc("Specify the minimum vulnerability severity to trigger an error"),
             ]
-            | None
-        ) = None,
+        ) = "",
         fail: Annotated[
             bool, Doc("Set to false to avoid failing based on severity-cutoff")
         ] = True,
@@ -186,21 +180,20 @@ class Image:
     @function
     async def sign(
         self,
-        private_key: Annotated[dagger.Secret, Doc("Cosign private key")] | None = None,
-        password: Annotated[dagger.Secret, Doc("Cosign password")] | None = None,
+        private_key: Annotated[dagger.Secret | None, Doc("Cosign private key")] = None,
+        password: Annotated[dagger.Secret | None, Doc("Cosign password")] = None,
         oidc_provider: Annotated[
             str, Doc("Specify the provider to get the OIDC token from")
-        ]
-        | None = None,
-        oidc_issuer: Annotated[str, Doc("OIDC provider to be used to issue ID toke")]
-        | None = None,
+        ] = "",
+        oidc_issuer: Annotated[
+            str, Doc("OIDC provider to be used to issue ID toke")
+        ] = "",
         recursive: Annotated[
             bool,
             Doc(
                 "If a multi-arch image is specified, additionally sign each discrete image"
             ),
-        ]
-        | None = True,
+        ] = True,
     ) -> str:
         """Sign image with Cosign"""
         cosign = self.cosign()
@@ -216,21 +209,20 @@ class Image:
     @function
     async def with_sign(
         self,
-        private_key: Annotated[dagger.Secret, Doc("Cosign private key")] | None = None,
-        password: Annotated[dagger.Secret, Doc("Cosign password")] | None = None,
+        private_key: Annotated[dagger.Secret | None, Doc("Cosign private key")] = None,
+        password: Annotated[dagger.Secret | None, Doc("Cosign password")] = None,
         oidc_provider: Annotated[
             str, Doc("Specify the provider to get the OIDC token from")
-        ]
-        | None = None,
-        oidc_issuer: Annotated[str, Doc("OIDC provider to be used to issue ID toke")]
-        | None = None,
+        ] = "",
+        oidc_issuer: Annotated[
+            str, Doc("OIDC provider to be used to issue ID toke")
+        ] = "",
         recursive: Annotated[
             bool,
             Doc(
                 "If a multi-arch image is specified, additionally sign each discrete image"
             ),
-        ]
-        | None = True,
+        ] = True,
     ) -> Self:
         """Sign image with Cosign (for chaining)"""
         await self.sign(

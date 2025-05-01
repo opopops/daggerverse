@@ -65,12 +65,9 @@ class Build:
         severity_cutoff: (
             Annotated[
                 str,
-                Doc(
-                    """Specify the minimum vulnerability severity to trigger an "error" level ACS result"""
-                ),
+                Doc("Specify the minimum vulnerability severity to trigger an error"),
             ]
-            | None
-        ) = None,
+        ) = "",
         fail: Annotated[
             bool, Doc("Set to false to avoid failing based on severity-cutoff")
         ] = True,
@@ -92,12 +89,9 @@ class Build:
         severity_cutoff: (
             Annotated[
                 str,
-                Doc(
-                    """Specify the minimum vulnerability severity to trigger an "error" level ACS result"""
-                ),
+                Doc("Specify the minimum vulnerability severity to trigger an error"),
             ]
-            | None
-        ) = None,
+        ) = "",
         fail: Annotated[
             bool, Doc("Set to false to avoid failing based on severity-cutoff")
         ] = True,
@@ -122,4 +116,4 @@ class Build:
             await self.container_.publish(
                 address=tag, platform_variants=self.platform_variants
             )
-        return Image(address=self.tag, apko=self.apko, container_=self.container_)
+        return Image(address=self.tag, apko=self.apko)

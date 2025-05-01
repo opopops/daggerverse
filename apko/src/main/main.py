@@ -17,11 +17,11 @@ class Apko:
     )
     version: Annotated[str, Doc("Apko version")] = "latest"
     user: Annotated[str, Doc("Image user")] = "65532"
+    apko_: dagger.Container | None = None
 
     container_: dagger.Container = dataclasses.field(
         default_factory=lambda: dag.container()
     )
-    apko_: dagger.Container | None = None
 
     @function(name="container")
     def apko(self) -> dagger.Container:
@@ -177,12 +177,7 @@ class Apko:
         for platform in platforms:
             platform_variants.append(dag.container(platform=platform).import_(tarball))
 
-        return Build(
-            platform_variants=platform_variants,
-            tag=tag,
-            apko=apko,
-            container_=self.container_,
-        )
+        return Build(platform_variants=platform_variants, tag=tag, apko=apko)
 
     @function
     async def publish(
@@ -259,4 +254,4 @@ class Apko:
             cmd.append("--local")
 
         apko = await apko.with_exec(cmd, use_entrypoint=True, expand=True)
-        return Image(address=tags[0], apko=apko, container_=self.container_)
+        return Image(address=tags[0], apko=apko)

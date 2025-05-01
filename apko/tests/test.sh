@@ -11,7 +11,7 @@ cd "$MODULE_DIR"
 dagger call --progress=plain \
   build \
     --config ./tests/config/apko.yaml  \
-    --tag ttl.sh/opopops-daggerverse-apko:1h \
+    --tag ttl.sh/opopops/daggerverse-apko:1h \
   with-scan \
     --severity-cutoff critical \
   publish \
@@ -21,7 +21,7 @@ dagger call --progress=plain \
   publish \
     --context ./tests  \
     --config ./tests/config/apko.yaml  \
-    --tag ttl.sh/opopops-daggerverse-apko:1h \
+    --tag ttl.sh/opopops/daggerverse-apko:1h \
     --arch amd64,arm64 \
   with-scan \
     --severity-cutoff critical \
