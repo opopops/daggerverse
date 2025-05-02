@@ -13,8 +13,9 @@ dagger call --progress=plain \
     --username ${DOCKERHUB_USERNAME} \
     --secret env:DOCKERHUB_TOKEN \
     --address docker.io \
-  package-push \
-    --source ./tests/helm/daggerverse  \
-    --registry docker.io/opopops \
+  with-package \
+    --source ./tests/helm/daggerverse \
     --version "0.0.0" \
-    --app-version "unstable"
+    --app-version "unstable" \
+  push \
+    --registry docker.io/opopops

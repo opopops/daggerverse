@@ -16,6 +16,7 @@ class Helm:
     )
     version: Annotated[str, Doc("Helm version")] = "latest"
     user: Annotated[str, Doc("Image user")] = "65532"
+    chart: Annotated[dagger.File | None, Doc("The chart archive")] = None
 
     container_: dagger.Container | None = None
 
@@ -40,11 +41,23 @@ class Helm:
             .with_exec(["apk", "add", "--no-cache", "kubectl", pkg])
             .with_entrypoint(["/usr/bin/helm"])
             .with_user(self.user)
+            .with_env_variable("HELM_CACHE_HOME", "/tmp/helm/cache", expand=True)
+            .with_env_variable("HELM_CONFIG_HOME", "/tmp/helm/config", expand=True)
+            .with_env_variable("HELM_DATA_HOME", "/tmp/helm/data", expand=True)
             .with_env_variable(
-                "HELM_REGISTRY_CONFIG", "/tmp/helm/registry/config.json", expand=True
+                "HELM_REGISTRY_CONFIG",
+                "${HELM_CONFIG_HOME}/registry/config.json",
+                expand=True,
             )
             .with_exec(
-                ["mkdir", "-p", "/tmp/helm/registry"],
+                [
+                    "mkdir",
+                    "-p",
+                    "$HELM_CACHE_HOME",
+                    "$HELM_CONFIG_HOME",
+                    "$HELM_CONFIG_HOME/registry",
+                    "$HELM_DATA_HOME",
+                ],
                 use_entrypoint=False,
                 expand=True,
             )
@@ -218,10 +231,31 @@ class Helm:
         return dest_dir.file(dest_files[0])
 
     @function
+    async def with_package(
+        self,
+        source: Annotated[dagger.Directory, Doc("Chart directory")],
+        app_version: Annotated[
+            str, Doc("Set the appVersion on the chart to this version")
+        ] = "",
+        version: Annotated[
+            str, Doc("Set the version on the chart to this semver version")
+        ] = "",
+        dependency_update: Annotated[bool, Doc("Update dependencies")] = False,
+    ) -> Self:
+        """Packages a chart into a versioned chart archive file (for chaining)"""
+        self.chart = await self.package(
+            source=source,
+            app_version=app_version,
+            version=version,
+            dependency_update=dependency_update,
+        )
+        return self
+
+    @function
     async def push(
         self,
-        chart: Annotated[dagger.File, Doc("Chart archive")],
         registry: Annotated[str, Doc("Registry host")],
+        chart: Annotated[dagger.File | None, Doc("Chart archive")] = None,
         username: Annotated[str, Doc("Registry username")] = "",
         password: Annotated[dagger.Secret | None, Doc("Registry password")] = None,
         plain_http: Annotated[
@@ -239,7 +273,7 @@ class Helm:
         container: dagger.Container = (
             self.container()
             .with_env_variable("HELM_CHART", "/tmp/chart.tgz")
-            .with_file("$HELM_CHART", chart, owner=self.user, expand=True)
+            .with_file("$HELM_CHART", chart or self.chart, owner=self.user, expand=True)
         )
 
         cmd = ["show", "chart", "$HELM_CHART"]
