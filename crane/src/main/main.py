@@ -128,7 +128,8 @@ class Crane:
             container.with_mounted_file(path=path, source=tarball, owner=self.user)
             cmd.extend(["--tarball", path])
 
-        return await container.with_exec(cmd, use_entrypoint=True).stdout()
+        digest: str = await container.with_exec(cmd, use_entrypoint=True).stdout()
+        return digest.strip()
 
     @function
     async def copy(
@@ -161,7 +162,10 @@ class Crane:
         if no_clobber:
             cmd.extend(["--no-clobber"])
 
-        return await self.container().with_exec(cmd, use_entrypoint=True).stdout()
+        digest: str = (
+            await self.container().with_exec(cmd, use_entrypoint=True).stdout()
+        )
+        return digest.strip()
 
     @function
     async def with_copy(
@@ -204,7 +208,10 @@ class Crane:
         if platform:
             cmd.extend(["--platform", platform])
 
-        return await self.container().with_exec(cmd, use_entrypoint=True).stdout()
+        digest: str = (
+            await self.container().with_exec(cmd, use_entrypoint=True).stdout()
+        )
+        return digest.strip()
 
     @function
     async def with_tag(
