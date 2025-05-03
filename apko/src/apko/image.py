@@ -40,6 +40,11 @@ class Image:
         return self.container_
 
     @function
+    def as_tarball(self) -> dagger.File:
+        """Returns the image tarball"""
+        return self.container_.as_tarball()
+
+    @function
     def with_registry_auth(
         self,
         username: Annotated[str, Doc("Registry username")],

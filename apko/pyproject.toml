@@ -1,54 +1,12 @@
 [project]
-name = "main"
+name = "apko"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = ["dagger-io ==0.18.4"]
-
-[tool.uv.sources]
-dagger-io = { path = "sdk", editable = true }
+dependencies = ["dagger-io"]
 
 [build-system]
 requires = ["hatchling==1.25.0"]
 build-backend = "hatchling.build"
 
-[tool.ruff]
-target-version = "py312"
-line-length = 88
-
-exclude = [
-  ".bzr",
-  ".direnv",
-  ".eggs",
-  ".git",
-  ".hg",
-  ".mypy_cache",
-  ".nox",
-  ".pants.d",
-  ".pytype",
-  ".ruff_cache",
-  ".svn",
-  ".tox",
-  ".venv",
-  "__pycache__",
-  "__pypackages__",
-  "_build",
-  "buck-out",
-  "build",
-  "dist",
-  "node_modules",
-  "venv",
-]
-
-format.indent-style = "space"
-format.quote-style = "double"
-format.line-ending = "auto"
-format.skip-magic-trailing-comma = true
-
-lint.isort.lines-after-imports = 2
-lint.isort.split-on-trailing-comma = false
-lint.pycodestyle.max-doc-length = 200
-lint.pycodestyle.max-line-length = 120
-
-[tool.isort]
-profile = "black"
-lines_after_imports = 2
+[tool.uv.sources]
+dagger-io = { path = "sdk", editable = true }
