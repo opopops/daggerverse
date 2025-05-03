@@ -35,6 +35,18 @@ class Cosign:
             .with_exec(["apk", "add", "--no-cache", pkg])
             .with_entrypoint(["/usr/bin/cosign"])
             .with_user(self.user)
+            .with_exec(
+                ["mkdir", "-p", "$DOCKER_CONFIG"],
+                use_entrypoint=False,
+                expand=True,
+            )
+            .with_new_file(
+                "${DOCKER_CONFIG}/config.json",
+                contents="",
+                owner=self.user,
+                permissions=0o600,
+                expand=True,
+            )
         )
 
         if self.docker_config:
