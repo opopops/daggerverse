@@ -1,5 +1,5 @@
 from typing import Annotated, Self
-import dataclasses
+
 import dagger
 from dagger import Doc, Name, dag, function, object_type
 
@@ -10,13 +10,55 @@ from .image import Image
 class Build:
     """Apko Build"""
 
-    platform_variants: Annotated[list[dagger.Container], Doc("Platform variants")]
-    tag: Annotated[str, Doc("Image tag")]
-    apko: dagger.Container
+    apko_: dagger.Container
+    container_: dagger.Container
+    platform_variants_: list[dagger.Container] | None
 
-    container_: dagger.Container = dataclasses.field(
-        default_factory=lambda: dag.container()
-    )
+    @classmethod
+    async def create(
+        cls,
+        apko: Annotated[dagger.Container, Doc("Apko container")],
+        container: Annotated[dagger.Container, Doc("Image container")],
+        platform_variants: Annotated[
+            list[dagger.Container | None], Doc("Platform variants")
+        ] = None,
+    ):
+        """Constructor"""
+        return cls(
+            apko_=apko, container_=container, platform_variants_=platform_variants
+        )
+
+    @function
+    def apko(self) -> dagger.Container:
+        """Returns the apko container"""
+        return self.apko_
+
+    @function
+    def container(self) -> dagger.Container:
+        """Returns the image container"""
+        return self.container_
+
+    def platform_variants(self) -> list[dagger.Container]:
+        """Returns the image platform variants"""
+        return self.platform_variants_
+
+    @function
+    async def platforms(self) -> list[dagger.Platform]:
+        """Retrieves build platforms"""
+        platforms: list[dagger.Platform] = [await self.container().platform()]
+        for platform_variant in self.platform_variants():
+            platforms.append(await platform_variant.platform())
+        return platforms
+
+    @function
+    def as_tarball(self) -> dagger.File:
+        """Returns the image tarball"""
+        return self.container().as_tarball(platform_variants=self.platform_variants())
+
+    @function
+    def sbom(self) -> dagger.Directory:
+        """Returns the SBOM directory"""
+        return self.apko().directory("$APKO_SBOM_DIR", expand=True)
 
     @function
     def with_registry_auth(
@@ -26,38 +68,24 @@ class Build:
         address: Annotated[str, Doc("Registry host")] = "docker.io",
     ) -> Self:
         """Authenticates with registry"""
-        self.container_ = self.container_.with_registry_auth(
+        self.container_ = self.container().with_registry_auth(
             address=address, username=username, secret=secret
         )
+        cmd = [
+            "sh",
+            "-c",
+            (
+                f"apko login {address}"
+                f" --username {username}"
+                " --password ${REGISTRY_PASSWORD}"
+            ),
+        ]
+        self.apko_ = (
+            self.apko()
+            .with_secret_variable("REGISTRY_PASSWORD", secret)
+            .with_exec(cmd, use_entrypoint=False)
+        )
         return self
-
-    @function
-    async def platforms(self) -> list[dagger.Platform]:
-        """Retrieves build platforms"""
-        platforms: list[dagger.Platform] = []
-        for platform_variant in self.platform_variants:
-            platforms.append(await platform_variant.platform())
-        return platforms
-
-    @function(name="container")
-    async def platform_container(
-        self, platform: dagger.Platform | None = None
-    ) -> dagger.Container:
-        """Returns the build container"""
-        platform = platform or await dag.default_platform()
-        for platform_variant in self.platform_variants:
-            if platform_variant.platform() == platform:
-                return platform_variant
-
-    @function
-    def as_tarball(self) -> dagger.File:
-        """Returns the image tarball"""
-        return self.container_.as_tarball(platform_variants=self.platform_variants)
-
-    @function
-    def sbom(self) -> dagger.Directory:
-        """Returns the SBOM directory"""
-        return self.apko.directory("$APKO_SBOM_DIR", expand=True)
 
     @function
     def scan(
@@ -105,15 +133,12 @@ class Build:
 
     @function
     async def publish(
-        self, tags: Annotated[list[str], Doc("Additional tags"), Name("tag")] = ()
+        self, tags: Annotated[list[str], Doc("Image tags"), Name("tag")]
     ) -> Image:
-        """Publish multi-arch image"""
-        await self.container_.publish(
-            address=self.tag, platform_variants=self.platform_variants
-        )
+        """Publish image"""
         # additionnal tags
         for tag in tags:
-            await self.container_.publish(
-                address=tag, platform_variants=self.platform_variants
+            await self.container().publish(
+                address=tag, platform_variants=self.platform_variants()
             )
-        return Image(address=self.tag, apko=self.apko)
+        return Image(address=tags[0], apko_=self.apko(), container_=self.container())

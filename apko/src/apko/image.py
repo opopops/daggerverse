@@ -1,25 +1,33 @@
 import json
-import dataclasses
 from typing import Annotated, Self
 from urllib.parse import urlparse
 import dagger
-from dagger import Doc, dag, function, object_type
+from dagger import Doc, dag, field, function, object_type
 
 
 @object_type
 class Image:
     """Apko Image"""
 
-    address: Annotated[str, Doc("Image address")]
-    apko: dagger.Container | None = None
+    address: str = field()
+    apko_: dagger.Container
+    container_: dagger.Container | None
 
-    container_: dagger.Container = dataclasses.field(
-        default_factory=lambda: dag.container()
-    )
+    @classmethod
+    async def create(
+        cls,
+        address: Annotated[str, Doc("Image address")],
+        apko: Annotated[dagger.Container, Doc("Apko container")],
+        container: Annotated[dagger.Container | None, Doc("Image container")] = None,
+    ):
+        """Constructor"""
+        if container is None:
+            container = dag.container().from_(address)
+        return cls(address=address, apko_=apko, container_=container)
 
     def docker_config(self) -> dagger.File:
         """Returns the docker config file"""
-        return self.apko.file("${DOCKER_CONFIG}/config.json", expand=True)
+        return self.apko().file("${DOCKER_CONFIG}/config.json", expand=True)
 
     def crane(self) -> dagger.Crane:
         """Returns crane"""
@@ -34,15 +42,19 @@ class Image:
         return dag.grype(docker_config=self.docker_config())
 
     @function
+    def apko(self) -> dagger.Container:
+        """Returns the apko container"""
+        return self.apko_
+
+    @function
     def container(self) -> dagger.Container:
-        """Returns image container"""
-        self.container_ = self.container_.from_(self.address)
+        """Returns the image container"""
         return self.container_
 
     @function
     def as_tarball(self) -> dagger.File:
         """Returns the image tarball"""
-        return self.container_.as_tarball()
+        return self.container().as_tarball()
 
     @function
     def with_registry_auth(
@@ -52,10 +64,9 @@ class Image:
         address: Annotated[str, Doc("Registry host")] = "docker.io",
     ) -> Self:
         """Authenticates with registry"""
-        self.container_ = self.container_.with_registry_auth(
+        self.container_ = self.container().with_registry_auth(
             address=address, username=username, secret=secret
         )
-        container: dagger.Container = self.apko
         cmd = [
             "sh",
             "-c",
@@ -65,15 +76,17 @@ class Image:
                 " --password ${REGISTRY_PASSWORD}"
             ),
         ]
-        self.apko = container.with_secret_variable(
-            "REGISTRY_PASSWORD", secret
-        ).with_exec(cmd, use_entrypoint=False)
+        self.apko_ = (
+            self.apko()
+            .with_secret_variable("REGISTRY_PASSWORD", secret)
+            .with_exec(cmd, use_entrypoint=False)
+        )
         return self
 
     @function
     def sbom(self) -> dagger.Directory:
         """Returns the SBOM directory"""
-        return self.apko.directory("$APKO_SBOM_DIR", expand=True)
+        return self.apko().directory("$APKO_SBOM_DIR", expand=True)
 
     @function
     async def platforms(self) -> list[dagger.Platform]:
@@ -93,14 +106,13 @@ class Image:
     @function
     async def ref(self) -> str:
         """Retrieves the fully qualified image ref"""
-        ref = await self.container().image_ref()
+        ref = await self.crane().digest(image=self.address, full_ref=True)
         return ref.strip()
 
     @function
     async def digest(self) -> str:
         """Retrieves the image digest"""
-        crane = self.crane()
-        digest = await crane.digest(image=self.address)
+        digest = await self.crane().digest(image=self.address)
         return digest.strip()
 
     @function
@@ -112,10 +124,7 @@ class Image:
     @function
     async def tag(self, tag: Annotated[str, Doc("Tag")]) -> str:
         """Tag image"""
-        crane = self.crane()
-        result = await crane.tag(image=self.address, tag=tag)
-        self.address = tag
-        self.container_ = None
+        result = await self.crane().tag(image=self.address, tag=tag)
         return result
 
     @function
@@ -127,10 +136,7 @@ class Image:
     @function
     async def copy(self, target: Annotated[str, Doc("Target")]) -> str:
         """Copy image to another registry"""
-        crane = self.crane()
-        result = await crane.copy(source=self.address, target=target)
-        self.address = target
-        self.container_ = None
+        result = await self.crane().copy(source=self.address, target=target)
         return result
 
     @function
@@ -201,8 +207,7 @@ class Image:
         ] = True,
     ) -> str:
         """Sign image with Cosign"""
-        cosign = self.cosign()
-        return await cosign.sign(
+        return await self.cosign().sign(
             image=await self.ref(),
             private_key=private_key,
             password=password,

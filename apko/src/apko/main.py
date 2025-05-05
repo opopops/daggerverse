@@ -1,6 +1,5 @@
 from typing import Annotated, Self
 import os
-import dataclasses
 import dagger
 from dagger import DefaultPath, Doc, Name, dag, function, object_type
 
@@ -12,31 +11,43 @@ from .image import Image
 class Apko:
     """Apko module"""
 
-    image: Annotated[str, Doc("wolfi-base image")] = (
-        "cgr.dev/chainguard/wolfi-base:latest"
-    )
-    version: Annotated[str, Doc("Apko version")] = "latest"
-    user: Annotated[str, Doc("Image user")] = "65532"
-    apko_: dagger.Container | None = None
+    image: str
+    version: str
+    user: str
+    apko_: dagger.Container | None
+    container: dagger.Container | None
 
-    container_: dagger.Container = dataclasses.field(
-        default_factory=lambda: dag.container()
-    )
+    @classmethod
+    async def create(
+        cls,
+        image: Annotated[str, Doc("wolfi-base image")] = (
+            "cgr.dev/chainguard/wolfi-base:latest"
+        ),
+        version: Annotated[str, Doc("Apko version")] = "latest",
+        user: Annotated[str, Doc("Image user")] = "65532",
+    ):
+        """Constructor"""
+        return cls(
+            image=image,
+            version=version,
+            user=user,
+            container=dag.container(),
+            apko_=None,
+        )
 
-    @function(name="container")
+    @function
     def apko(self) -> dagger.Container:
         """Returns the apko container"""
         if self.apko_:
             return self.apko_
-
-        container: dagger.Container = dag.container()
 
         pkg = "apko"
         if self.version != "latest":
             pkg = f"{pkg}~{self.version}"
 
         self.apko_ = (
-            container.from_(address=self.image)
+            dag.container()
+            .from_(address=self.image)
             .with_user("0")
             .with_exec(["apk", "add", "--no-cache", pkg])
             .with_entrypoint(["/usr/bin/apko"])
@@ -84,10 +95,9 @@ class Apko:
         address: Annotated[str, Doc("Registry host")] = "docker.io",
     ) -> Self:
         """Authenticates with registry"""
-        self.container_ = self.container_.with_registry_auth(
+        self.container = self.container.with_registry_auth(
             address=address, username=username, secret=secret
         )
-        container: dagger.Container = self.apko()
         cmd = [
             "sh",
             "-c",
@@ -97,9 +107,11 @@ class Apko:
                 " --password ${REGISTRY_PASSWORD}"
             ),
         ]
-        self.apko_ = container.with_secret_variable(
-            "REGISTRY_PASSWORD", secret
-        ).with_exec(cmd, use_entrypoint=False)
+        self.apko_ = (
+            self.apko()
+            .with_secret_variable("REGISTRY_PASSWORD", secret)
+            .with_exec(cmd, use_entrypoint=False)
+        )
         return self
 
     @function
@@ -109,7 +121,7 @@ class Apko:
             dagger.Directory, DefaultPath("/"), Doc("Working dir"), Name("source")
         ],
         config: Annotated[dagger.File, Doc("Config file")],
-        tag: Annotated[str, Doc("Image tag")],
+        tag: Annotated[str, Doc("Image tag")] = "apko-build",
         platforms: Annotated[
             list[dagger.Platform] | None, Doc("Platforms"), Name("arch")
         ] = None,
@@ -172,12 +184,19 @@ class Apko:
 
         apko = await apko.with_exec(cmd, use_entrypoint=True, expand=True)
         tarball = apko.directory("$APKO_OUTPUT_DIR", expand=True).file("image.tar")
-
+        current_platform: dagger.Platform = await self.container.platform()
         platform_variants: list[dagger.Container] = []
         for platform in platforms:
-            platform_variants.append(dag.container(platform=platform).import_(tarball))
+            if platform == current_platform:
+                self.container = self.container.import_(tarball)
+            else:
+                platform_variants.append(
+                    dag.container(platform=platform).import_(tarball)
+                )
 
-        return Build(platform_variants=platform_variants, tag=tag, apko=apko)
+        return Build(
+            apko_=apko, container_=self.container, platform_variants_=platform_variants
+        )
 
     @function
     async def publish(
@@ -254,4 +273,4 @@ class Apko:
             cmd.append("--local")
 
         apko = await apko.with_exec(cmd, use_entrypoint=True, expand=True)
-        return Image(address=tags[0], apko=apko)
+        return Image(address=tags[0], apko_=apko, container_=self.container)
