@@ -51,6 +51,15 @@ class Build:
         return platforms
 
     @function
+    def as_directory(self) -> dagger.Directory:
+        """Returns the build directory including image tarball and sbom dir"""
+        return (
+            dag.directory()
+            .with_file("image.tar", self.as_tarball())
+            .with_directory("sbom", self.sbom())
+        )
+
+    @function
     def as_tarball(self) -> dagger.File:
         """Returns the image tarball"""
         return self.container().as_tarball(platform_variants=self.platform_variants())
