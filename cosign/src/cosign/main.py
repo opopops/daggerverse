@@ -100,6 +100,20 @@ class Cosign:
         return self
 
     @function
+    async def generate_key_pair(
+        self, password: Annotated[dagger.Secret | None, Doc("Key password")] = None
+    ) -> dagger.Directory:
+        """Generate key pair"""
+        cosign_password: str = await password.plaintext() if password else ""
+        container = (
+            self.container()
+            .with_env_variable("COSIGN_PASSWORD", cosign_password)
+            .with_workdir("/tmp/cosign")
+            .with_exec(["generate-key-pair"], use_entrypoint=True)
+        )
+        return container.directory("/tmp/cosign")
+
+    @function
     async def sign(
         self,
         image: Annotated[str, Doc("Image digest URI")],
