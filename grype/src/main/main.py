@@ -7,14 +7,30 @@ from dagger import Doc, dag, function, object_type
 class Grype:
     """Grype CLI"""
 
-    image: Annotated[str, Doc("wolfi-base image")] = (
-        "cgr.dev/chainguard/wolfi-base:latest"
-    )
-    version: Annotated[str, Doc("Grype version")] = "0.87"
-    user: Annotated[str, Doc("Image user")] = "65532"
-    docker_config: Annotated[dagger.File | None, Doc("Docker config file")] = None
+    image: str
+    version: str
+    user: str
+    docker_config: dagger.File | None
+    container_: dagger.Container | None
 
-    container_: dagger.Container | None = None
+    @classmethod
+    async def create(
+        cls,
+        image: Annotated[str, Doc("wolfi-base image")] = (
+            "cgr.dev/chainguard/wolfi-base:latest"
+        ),
+        version: Annotated[str, Doc("Grype version")] = "0.87",
+        user: Annotated[str, Doc("Image user")] = "65532",
+        docker_config: Annotated[dagger.File | None, Doc("Docker config file")] = None,
+    ):
+        """Constructor"""
+        return cls(
+            image=image,
+            version=version,
+            user=user,
+            docker_config=docker_config,
+            container_=None,
+        )
 
     @function
     def container(self) -> dagger.Container:
