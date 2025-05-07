@@ -6,16 +6,34 @@ from dagger import Doc, Name, dag, function, object_type
 
 @object_type
 class Melange:
-    image: Annotated[str, Doc("wolfi-base image")] = (
-        "cgr.dev/chainguard/wolfi-base:latest"
-    )
-    version: Annotated[str, Doc("Melange version")] = "latest"
-    user: Annotated[str, Doc("Image user")] = "0"
+    """Melange"""
 
-    container_: dagger.Container | None = None
+    image: str
+    version: str
+    user: str
+    signing_key_: dagger.File | None
+    public_key_: dagger.File | None
+    container_: dagger.Container | None
 
-    signing_key_: dagger.File | None = None
-    public_key_: dagger.File | None = None
+    @classmethod
+    async def create(
+        cls,
+        image: Annotated[str, Doc("wolfi-base image")] = (
+            "cgr.dev/chainguard/wolfi-base:latest"
+        ),
+        version: Annotated[str, Doc("Melange version")] = "latest",
+        user: Annotated[str, Doc("Image user")] = "0",
+        signing_key: Annotated[dagger.File | None, Doc("Signing key")] = None,
+    ):
+        """Constructor"""
+        return cls(
+            image=image,
+            version=version,
+            user=user,
+            signing_key_=signing_key,
+            public_key_=None,
+            container_=None,
+        )
 
     @function
     def container(self) -> dagger.Container:
