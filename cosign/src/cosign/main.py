@@ -280,3 +280,88 @@ class Cosign:
             recursive=recursive,
         )
         return self
+
+    @function
+    async def copy(
+        self,
+        source: Annotated[str, Doc("Source image")],
+        destination: Annotated[str, Doc("Destination image")],
+        platform: Annotated[
+            dagger.Platform | None,
+            Doc(
+                "Only copy container image and its signatures for a specific platform image"
+            ),
+        ] = None,
+        only: Annotated[
+            list[str],
+            Doc(
+                "Custom string array to only copy specific items. ex: --only=sig,att,sbom"
+            ),
+        ] = (),
+        force: Annotated[
+            bool,
+            Doc("Overwrite destination image(s), if necessary"),
+        ] = False,
+        allow_http_registry: Annotated[
+            bool,
+            Doc("Whether to allow using HTTP protocol while connecting to registries"),
+        ] = False,
+        allow_insecure_registry: Annotated[
+            bool, Doc("whether to allow insecure connections to registries")
+        ] = False,
+    ) -> str:
+        """Copy the supplied container image and signatures"""
+        container = self.container()
+        cmd = ["copy", source, destination]
+        if platform:
+            cmd.extend(["--platform", platform])
+        if only:
+            cmd.extend(["--only", ",".join(only)])
+        if force:
+            cmd.append("--force")
+        if allow_http_registry:
+            cmd.append("--allow-http-registry")
+        if allow_insecure_registry:
+            cmd.append("--allow-insecure-registry")
+        return await container.with_exec(cmd, use_entrypoint=True).stdout()
+
+    @function
+    async def with_copy(
+        self,
+        source: Annotated[str, Doc("Source image")],
+        destination: Annotated[str, Doc("Destination image")],
+        platform: Annotated[
+            dagger.Platform | None,
+            Doc(
+                "Only copy container image and its signatures for a specific platform image"
+            ),
+        ] = None,
+        only: Annotated[
+            list[str],
+            Doc(
+                "Custom string array to only copy specific items. ex: --only=sig,att,sbom"
+            ),
+        ] = (),
+        force: Annotated[
+            bool,
+            Doc("Overwrite destination image(s), if necessary"),
+        ] = False,
+        allow_http_registry: Annotated[
+            bool,
+            Doc("Whether to allow using HTTP protocol while connecting to registries"),
+        ] = False,
+        allow_insecure_registry: Annotated[
+            bool, Doc("whether to allow insecure connections to registries")
+        ] = False,
+    ) -> Self:
+        """Copy the supplied container image and signatures (for chaining)"""
+        await self.copy(
+            source=source,
+            destination=destination,
+            platform=platform,
+            only=only,
+            force=force,
+            allow_http_registry=allow_http_registry,
+            allow_insecure_registry=allow_insecure_registry,
+        )
+        return self
