@@ -101,13 +101,16 @@ class Cosign:
 
     @function
     async def generate_key_pair(
-        self, password: Annotated[dagger.Secret | None, Doc("Key password")] = None
+        self,
+        password: Annotated[dagger.Secret | None, Doc("Key password")] = dag.set_secret(
+            "cosign_password", ""
+        ),
     ) -> dagger.Directory:
         """Generate key pair"""
-        cosign_password: str = await password.plaintext() if password else ""
+
         container = (
             self.container()
-            .with_env_variable("COSIGN_PASSWORD", cosign_password)
+            .with_secret_variable("COSIGN_PASSWORD", password)
             .with_workdir("/tmp/cosign")
             .with_exec(["generate-key-pair"], use_entrypoint=True)
         )
@@ -118,7 +121,9 @@ class Cosign:
         self,
         image: Annotated[str, Doc("Image digest URI")],
         private_key: Annotated[dagger.Secret | None, Doc("Cosign private key")] = None,
-        password: Annotated[dagger.Secret | None, Doc("Cosign password")] = None,
+        password: Annotated[
+            dagger.Secret | None, Doc("Cosign password")
+        ] = dag.set_secret("cosign_password", ""),
         oidc_provider: Annotated[
             str, Doc("Specify the provider to get the OIDC token from")
         ] = "",
@@ -193,7 +198,9 @@ class Cosign:
         image: Annotated[str, Doc("Image digest URI")],
         predicate: Annotated[dagger.File, Doc("path to the predicate file")],
         private_key: Annotated[dagger.Secret | None, Doc("Cosign private key")] = None,
-        password: Annotated[dagger.Secret | None, Doc("Cosign password")] = None,
+        password: Annotated[
+            dagger.Secret | None, Doc("Cosign password")
+        ] = dag.set_secret("cosign_password", ""),
         type_: Annotated[str, Doc("Specify a predicate type"), Name("type")] = "",
         oidc_provider: Annotated[
             str, Doc("Specify the provider to get the OIDC token from")
