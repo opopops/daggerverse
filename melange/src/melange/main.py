@@ -11,7 +11,7 @@ class Melange:
     image: str
     version: str
     user: str
-    signing_key_: dagger.File | None
+    signing_key_: dagger.Secret | None
     public_key_: dagger.File | None
     container_: dagger.Container | None
 
@@ -23,7 +23,7 @@ class Melange:
         ),
         version: Annotated[str, Doc("Melange version")] = "latest",
         user: Annotated[str, Doc("Image user")] = "0",
-        signing_key: Annotated[dagger.File | None, Doc("Signing key")] = None,
+        signing_key: Annotated[dagger.Secret | None, Doc("Signing key")] = None,
     ):
         """Constructor"""
         return cls(
@@ -84,7 +84,7 @@ class Melange:
         return self.container_
 
     @function
-    def keygen(
+    async def keygen(
         self,
         key_size: Annotated[int, Doc("the size of the prime to calculate ")] = 4096,
     ) -> dagger.Directory:
@@ -94,26 +94,32 @@ class Melange:
         self.container_ = self.container().with_exec(
             cmd, use_entrypoint=True, expand=True
         )
-        self.signing_key_ = self.container().file("$MELANGE_SIGNING_KEY", expand=True)
+        signing_key_file: dagger.File = self.container().file(
+            "$MELANGE_SIGNING_KEY", expand=True
+        )
+        self.signing_key_ = dag.set_secret(
+            name="signing_key", plaintext=await signing_key_file.contents()
+        )
         self.public_key_ = self.container().file(
             "$MELANGE_SIGNING_KEY.pub", expand=True
         )
-
         return self.container().directory("$MELANGE_KEYRING_DIR", expand=True)
 
     @function
-    def with_keygen(
+    async def with_keygen(
         self,
         key_size: Annotated[int, Doc("the size of the prime to calculate ")] = 4096,
     ) -> Self:
         """Generate a key for package signing for chaining"""
-        self.keygen(key_size=key_size)
+        await self.keygen(key_size=key_size)
         return self
 
     @function
-    def signing_key(self) -> dagger.File:
+    async def signing_key(self) -> dagger.File:
         """Return the generated signing key"""
-        return self.signing_key_
+        return dag.file(
+            name="signing_key", contents=await self.signing_key_.plaintext()
+        )
 
     @function
     def public_key(self) -> dagger.File:
@@ -161,7 +167,7 @@ class Melange:
         source_dir: Annotated[
             dagger.Directory | None, Doc("Directory used for included sources")
         ] = None,
-        signing_key: Annotated[dagger.File, Doc("Key to use for signing")]
+        signing_key: Annotated[dagger.Secret, Doc("Key to use for signing")]
         | None = None,
         archs: Annotated[
             list[dagger.Platform] | None, Doc("Target architectures"), Name("arch")
@@ -187,9 +193,9 @@ class Melange:
             self.public_key_ = None
         else:
             if self.signing_key_ is None:
-                self.keygen()
+                await self.keygen()
 
-        melange = melange.with_mounted_file(
+        melange = melange.with_mounted_secret(
             path="$MELANGE_SIGNING_KEY",
             source=self.signing_key_,
             owner=self.user,
@@ -237,7 +243,7 @@ class Melange:
         config: Annotated[dagger.File, Doc("Config file")],
         version: Annotated[str, Doc("Version to bump to")] = "",
         signing_key: Annotated[
-            dagger.File | None, Doc("Key to use for signing")
+            dagger.Secret | None, Doc("Key to use for signing")
         ] = None,
         archs: Annotated[
             list[dagger.Platform] | None, Doc("Target architectures"), Name("arch")
