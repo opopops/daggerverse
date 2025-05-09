@@ -114,14 +114,14 @@ class Helm:
         ).with_exec(cmd, use_entrypoint=False)
         return self
 
-    def get_registry_host(self, address: str) -> str:
-        """Retrieves the registry host from the given address"""
-        url = None
-        if address.startswith("oci://"):
-            url = urlparse(address)
+    def get_registry_address(self, url: str) -> str:
+        """Retrieves the registry address from the given url"""
+        url_parsed = None
+        if url.startswith("oci://"):
+            url_parsed = urlparse(url)
         else:
-            url = urlparse(f"//{address}")
-        return url.netloc
+            url_parsed = urlparse(f"//{url}")
+        return "/".join([url_parsed.netloc, url_parsed.path])
 
     @function
     async def lint(
@@ -282,11 +282,13 @@ class Helm:
         ] = False,
     ) -> str:
         """Verify that the chart is well-formed"""
+        registry_address: str = self.get_registry_address(registry)
+
         if username and password:
             self.with_registry_auth(
                 username=username,
                 secret=password,
-                address=self.get_registry_host(registry),
+                address=registry_address,
             )
 
         container: dagger.Container = (
@@ -300,18 +302,12 @@ class Helm:
             await container.with_exec(cmd, use_entrypoint=True, expand=True).stdout()
         )
 
-        oci_registry: str = None
-        if registry.startswith("oci://"):
-            oci_registry = registry
-        else:
-            oci_registry = f"oci://{registry}"
-
-        cmd = ["push", "$HELM_CHART", oci_registry]
+        cmd = ["push", "$HELM_CHART", registry]
         if plain_http:
             cmd.extend(["--plain-http"])
 
-        container.with_exec(cmd, use_entrypoint=True, expand=True)
-        image: str = f"{self.get_registry_host(address=registry)}/{info.get('name')}:{info.get('version')}"
+        await container.with_exec(cmd, use_entrypoint=True, expand=True).stdout()
+        image: str = f"{registry_address}/{info.get('name')}:{info.get('version')}"
         digest: str = await dag.crane(docker_config=self.helm_registry_config()).digest(
             image
         )
