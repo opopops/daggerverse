@@ -311,7 +311,7 @@ class Helm:
             cmd.extend(["--plain-http"])
 
         container.with_exec(cmd, use_entrypoint=True, expand=True)
-        image: str = f"{registry}/{info.get('name')}:{info.get('version')}"
+        image: str = f"{self.get_registry_host(address=registry)}/{info.get('name')}:{info.get('version')}"
         digest: str = await dag.crane(docker_config=self.helm_registry_config()).digest(
             image
         )
