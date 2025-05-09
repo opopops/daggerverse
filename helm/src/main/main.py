@@ -121,7 +121,7 @@ class Helm:
             url_parsed = urlparse(url)
         else:
             url_parsed = urlparse(f"//{url}")
-        return "/".join([url_parsed.netloc, url_parsed.path])
+        return "/".join([url_parsed.netloc, url_parsed.path.lstrip("/")])
 
     @function
     async def lint(
@@ -302,7 +302,7 @@ class Helm:
             await container.with_exec(cmd, use_entrypoint=True, expand=True).stdout()
         )
 
-        cmd = ["push", "$HELM_CHART", registry]
+        cmd = ["push", "$HELM_CHART", f"oci://{registry_address}"]
         if plain_http:
             cmd.extend(["--plain-http"])
 

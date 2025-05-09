@@ -18,4 +18,4 @@ dagger call --progress=plain \
     --version "0.0.0" \
     --app-version "unstable" \
   push \
-    --registry oci://ghcr.io/${GITHUB_USERNAME}/test/helm
+    --registry ghcr.io/${GITHUB_USERNAME}/test/helm
