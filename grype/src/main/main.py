@@ -19,7 +19,7 @@ class Grype:
         image: Annotated[str, Doc("wolfi-base image")] = (
             "cgr.dev/chainguard/wolfi-base:latest"
         ),
-        version: Annotated[str, Doc("Grype version")] = "0.87",
+        version: Annotated[str, Doc("Grype version")] = "latest",
         user: Annotated[str, Doc("Image user")] = "65532",
         docker_config: Annotated[dagger.File | None, Doc("Docker config file")] = None,
     ):
@@ -47,15 +47,18 @@ class Grype:
         self.container_ = (
             container.from_(address=self.image)
             .with_env_variable("DOCKER_CONFIG", "/tmp/docker")
-            .with_env_variable("GRYPE_DB_CACHE_DIR", "/tmp/cache")
+            .with_env_variable("GRYPE_CACHE_DIR", "/tmp/cache")
+            .with_env_variable(
+                "GRYPE_DB_CACHE_DIR", "${GRYPE_CACHE_DIR}/db", expand=True
+            )
             .with_env_variable("GRYPE_OUTPUT_DIR", "/tmp/output")
             .with_user("0")
             .with_exec(["apk", "add", "--no-cache", "docker-cli", pkg])
             .with_entrypoint(["/usr/bin/grype"])
             .with_user(self.user)
             .with_mounted_cache(
-                "$GRYPE_DB_CACHE_DIR",
-                dag.cache_volume("grype-db-cache"),
+                "$GRYPE_CACHE_DIR",
+                dag.cache_volume("grype-cache"),
                 sharing=dagger.CacheSharingMode("LOCKED"),
                 owner=self.user,
                 expand=True,
