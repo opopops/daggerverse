@@ -1,5 +1,4 @@
 from typing import Annotated, Self
-import os
 import dagger
 from dagger import DefaultPath, Doc, Name, dag, function, object_type
 
@@ -48,23 +47,26 @@ class Apko:
         self.apko_ = (
             dag.container()
             .from_(address=self.image)
-            .with_user("0")
-            .with_exec(["apk", "add", "--no-cache", pkg])
-            .with_entrypoint(["/usr/bin/apko"])
-            .with_user(self.user)
             .with_env_variable("APKO_CACHE_DIR", "/tmp/cache")
             .with_env_variable("APKO_CONFIG_DIR", "/tmp/config")
+            .with_env_variable(
+                "APKO_CONFIG_FILE", "${APKO_CONFIG_DIR}/apko.yaml", expand=True
+            )
             .with_env_variable("APKO_WORK_DIR", "/tmp/work")
             .with_env_variable("APKO_OUTPUT_DIR", "/tmp/output")
             .with_env_variable("APKO_SBOM_DIR", "/tmp/sbom")
             .with_env_variable(
-                "APKO_OUTPUT_TAR", "${APKO_OUTPUT_DIR}/image.tar", expand=True
+                "APKO_IMAGE_TARBALL", "${APKO_OUTPUT_DIR}/image.tar", expand=True
             )
             .with_env_variable(
                 "APKO_KEYRING_FILE", "/tmp/keyring/melange.rsa.pub", expand=True
             )
             .with_env_variable("APKO_REPOSITORY_DIR", "/tmp/repository", expand=True)
             .with_env_variable("DOCKER_CONFIG", "/tmp/docker", expand=True)
+            .with_user("0")
+            .with_exec(["apk", "add", "--no-cache", pkg])
+            .with_entrypoint(["/usr/bin/apko"])
+            .with_user(self.user)
             .with_mounted_cache(
                 "$APKO_CACHE_DIR",
                 dag.cache_volume("apko-cache"),
@@ -133,12 +135,10 @@ class Apko:
         ] = None,
     ) -> Build:
         """Build an image using Apko"""
-        config_name = await config.name()
-
         apko = (
             self.apko()
             .with_mounted_file(
-                path=os.path.join("$APKO_CONFIG_DIR", config_name),
+                path="$APKO_CONFIG_FILE",
                 source=config,
                 owner=self.user,
                 expand=True,
@@ -151,9 +151,9 @@ class Apko:
 
         cmd = [
             "build",
-            os.path.join("$APKO_CONFIG_DIR", config_name),
+            "$APKO_CONFIG_FILE",
             tag,
-            "${APKO_OUTPUT_DIR}/image.tar",
+            "$APKO_IMAGE_TARBALL",
             "--cache-dir",
             "$APKO_CACHE_DIR",
             "--sbom-path",
@@ -183,7 +183,7 @@ class Apko:
             cmd.extend(["--arch", platform.split("/")[1]])
 
         apko = await apko.with_exec(cmd, use_entrypoint=True, expand=True)
-        tarball = apko.directory("$APKO_OUTPUT_DIR", expand=True).file("image.tar")
+        tarball = apko.file("$APKO_IMAGE_TARBALL", expand=True)
         current_platform: dagger.Platform = await self.container.platform()
         platform_variants: list[dagger.Container] = []
         for platform in platforms:
@@ -221,12 +221,10 @@ class Apko:
         ] = None,
     ) -> Image:
         """Publish an image using Apko"""
-        config_name = await config.name()
-
         apko = (
             self.apko()
             .with_mounted_file(
-                path=os.path.join("$APKO_CONFIG_DIR", config_name),
+                path="$APKO_CONFIG_FILE",
                 source=config,
                 owner=self.user,
                 expand=True,
@@ -237,7 +235,7 @@ class Apko:
             .with_workdir("$APKO_WORK_DIR", expand=True)
         )
 
-        cmd = ["publish", os.path.join("$APKO_CONFIG_DIR", config_name)]
+        cmd = ["publish", "$APKO_CONFIG_FILE"]
 
         cmd.extend(tags)
         cmd.extend(["--cache-dir", "$APKO_CACHE_DIR"])
