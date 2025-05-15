@@ -21,11 +21,11 @@ class Helm:
     @classmethod
     async def create(
         cls,
-        image: Annotated[str, Doc("wolfi-base image")] = (
+        image: Annotated[str | None, Doc("wolfi-base image")] = (
             "cgr.dev/chainguard/wolfi-base:latest"
         ),
-        version: Annotated[str, Doc("Helm version")] = "latest",
-        user: Annotated[str, Doc("Image user")] = "65532",
+        version: Annotated[str | None, Doc("Helm version")] = "latest",
+        user: Annotated[str | None, Doc("Image user")] = "65532",
         chart: Annotated[dagger.File | None, Doc("The chart archive")] = None,
         docker_config: Annotated[dagger.File | None, Doc("Docker config file")] = None,
     ):
@@ -96,7 +96,7 @@ class Helm:
         self,
         username: Annotated[str, Doc("Registry username")],
         secret: Annotated[dagger.Secret, Doc("Registry password")],
-        address: Annotated[str, Doc("Registry host")] = "docker.io",
+        address: Annotated[str | None, Doc("Registry host")] = "docker.io",
     ) -> Self:
         """Authenticate with registry"""
         container: dagger.Container = self.container()
@@ -127,8 +127,8 @@ class Helm:
     async def lint(
         self,
         source: Annotated[dagger.Directory, Doc("Chart directory")],
-        strict: Annotated[bool, Doc("Fail on lint warnings")] = False,
-        quiet: Annotated[bool, Doc("Print only warnings and errors")] = False,
+        strict: Annotated[bool | None, Doc("Fail on lint warnings")] = False,
+        quiet: Annotated[bool | None, Doc("Print only warnings and errors")] = False,
     ) -> str:
         """Verify that the chart is well-formed"""
         container: dagger.Container = (
@@ -150,8 +150,8 @@ class Helm:
     async def with_lint(
         self,
         source: Annotated[dagger.Directory, Doc("Chart directory")],
-        strict: Annotated[bool, Doc("Fail on lint warnings")] = False,
-        quiet: Annotated[bool, Doc("Print only warnings and errors")] = False,
+        strict: Annotated[bool | None, Doc("Fail on lint warnings")] = False,
+        quiet: Annotated[bool | None, Doc("Print only warnings and errors")] = False,
     ) -> Self:
         """Verify that the chart is well-formed (for chaining)"""
         await self.lint(source=source, strict=strict, quiet=quiet)
@@ -218,12 +218,12 @@ class Helm:
         self,
         source: Annotated[dagger.Directory, Doc("Chart directory")],
         app_version: Annotated[
-            str, Doc("Set the appVersion on the chart to this version")
+            str | None, Doc("Set the appVersion on the chart to this version")
         ] = "",
         version: Annotated[
-            str, Doc("Set the version on the chart to this semver version")
+            str | None, Doc("Set the version on the chart to this semver version")
         ] = "",
-        dependency_update: Annotated[bool, Doc("Update dependencies")] = False,
+        dependency_update: Annotated[bool | None, Doc("Update dependencies")] = False,
     ) -> dagger.File:
         """Packages a chart into a versioned chart archive file"""
         container: dagger.Container = (
@@ -254,12 +254,12 @@ class Helm:
         self,
         source: Annotated[dagger.Directory, Doc("Chart directory")],
         app_version: Annotated[
-            str, Doc("Set the appVersion on the chart to this version")
+            str | None, Doc("Set the appVersion on the chart to this version")
         ] = "",
         version: Annotated[
-            str, Doc("Set the version on the chart to this semver version")
+            str | None, Doc("Set the version on the chart to this semver version")
         ] = "",
-        dependency_update: Annotated[bool, Doc("Update dependencies")] = False,
+        dependency_update: Annotated[bool | None, Doc("Update dependencies")] = False,
     ) -> Self:
         """Packages a chart into a versioned chart archive file (for chaining)"""
         self.chart = await self.package(
@@ -275,10 +275,10 @@ class Helm:
         self,
         registry: Annotated[str, Doc("Registry host")],
         chart: Annotated[dagger.File | None, Doc("Chart archive")] = None,
-        username: Annotated[str, Doc("Registry username")] = "",
+        username: Annotated[str | None, Doc("Registry username")] = "",
         password: Annotated[dagger.Secret | None, Doc("Registry password")] = None,
         plain_http: Annotated[
-            bool, Doc("Use insecure HTTP connections for the chart upload")
+            bool | None, Doc("Use insecure HTTP connections for the chart upload")
         ] = False,
     ) -> str:
         """Verify that the chart is well-formed"""
@@ -318,18 +318,18 @@ class Helm:
         self,
         source: Annotated[dagger.Directory, Doc("Chart directory")],
         registry: Annotated[str, Doc("Registry host")],
-        username: Annotated[str, Doc("Registry username")] = "",
+        username: Annotated[str | None, Doc("Registry username")] = "",
         password: Annotated[dagger.Secret | None, Doc("Registry password")] = None,
         plain_http: Annotated[
-            bool, Doc("Use insecure HTTP connections for the chart upload")
+            bool | None, Doc("Use insecure HTTP connections for the chart upload")
         ] = False,
         app_version: Annotated[
-            str, Doc("Set the appVersion on the chart to this version")
+            str | None, Doc("Set the appVersion on the chart to this version")
         ] = "",
         version: Annotated[
-            str, Doc("Set the version on the chart to this semver version")
+            str | None, Doc("Set the version on the chart to this semver version")
         ] = "",
-        dependency_update: Annotated[bool, Doc("Update dependencies")] = False,
+        dependency_update: Annotated[bool | None, Doc("Update dependencies")] = False,
     ) -> str:
         """Packages a chart an push it to the registry"""
 
