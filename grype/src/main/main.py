@@ -16,11 +16,11 @@ class Grype:
     @classmethod
     async def create(
         cls,
-        image: Annotated[str, Doc("wolfi-base image")] = (
+        image: Annotated[str | None, Doc("wolfi-base image")] = (
             "cgr.dev/chainguard/wolfi-base:latest"
         ),
-        version: Annotated[str, Doc("Grype version")] = "latest",
-        user: Annotated[str, Doc("Image user")] = "65532",
+        version: Annotated[str | None, Doc("Grype version")] = "latest",
+        user: Annotated[str | None, Doc("Image user")] = "65532",
         docker_config: Annotated[dagger.File | None, Doc("Docker config file")] = None,
     ):
         """Constructor"""
@@ -86,7 +86,7 @@ class Grype:
         self,
         username: Annotated[str, Doc("Registry username")],
         secret: Annotated[dagger.Secret, Doc("Registry password")],
-        address: Annotated[str, Doc("Registry host")] = "docker.io",
+        address: Annotated[str | None, Doc("Registry host")] = "docker.io",
     ) -> Self:
         """Authenticate with registry"""
         container: dagger.Container = self.container()
@@ -110,14 +110,14 @@ class Grype:
         source: Annotated[str, Doc("Source to scan")],
         severity_cutoff: (
             Annotated[
-                str,
+                str | None,
                 Doc(
                     """Specify the minimum vulnerability severity to trigger an "error" level ACS result"""
                 ),
             ]
         ) = "",
         fail: Annotated[
-            bool, Doc("Set to false to avoid failing based on severity-cutoff")
+            bool | None, Doc("Set to false to avoid failing based on severity-cutoff")
         ] = True,
         output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
     ) -> dagger.File:
@@ -144,14 +144,14 @@ class Grype:
         source: Annotated[str, Doc("Source to scan")],
         severity_cutoff: (
             Annotated[
-                str,
+                str | None,
                 Doc(
                     """Specify the minimum vulnerability severity to trigger an "error" level ACS result"""
                 ),
             ]
         ) = "",
         fail: Annotated[
-            bool, Doc("Set to false to avoid failing based on severity-cutoff")
+            bool | None, Doc("Set to false to avoid failing based on severity-cutoff")
         ] = True,
         output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
     ) -> Self:
@@ -168,19 +168,19 @@ class Grype:
     def scan_image(
         self,
         source: Annotated[str, Doc("Image to scan")],
-        source_type: Annotated[str, Doc("Source type")] = "registry",
+        source_type: Annotated[str | None, Doc("Source type")] = "registry",
         severity_cutoff: (
             Annotated[
-                str,
+                str | None,
                 Doc(
                     """Specify the minimum vulnerability severity to trigger an "error" level ACS result"""
                 ),
             ]
         ) = "",
         fail: Annotated[
-            bool, Doc("Set to false to avoid failing based on severity-cutoff")
+            bool | None, Doc("Set to false to avoid failing based on severity-cutoff")
         ] = True,
-        output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
+        output_format: Annotated[str | None, Doc("Report output formatter")] = "sarif",
     ) -> dagger.File:
         """Scan container image"""
         output_file = f"$GRYPE_OUTPUT_DIR/report.{output_format}"
@@ -209,17 +209,17 @@ class Grype:
     def with_scan_image(
         self,
         source: Annotated[str, Doc("Image to scan")],
-        source_type: Annotated[str, Doc("Source type")] = "registry",
+        source_type: Annotated[str | None, Doc("Source type")] = "registry",
         severity_cutoff: (
             Annotated[
-                str,
+                str | None,
                 Doc(
                     """Specify the minimum vulnerability severity to trigger an "error" level ACS result"""
                 ),
             ]
         ) = "",
         fail: Annotated[
-            bool, Doc("Set to false to avoid failing based on severity-cutoff")
+            bool | None, Doc("Set to false to avoid failing based on severity-cutoff")
         ] = True,
         output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
     ) -> Self:
@@ -237,10 +237,10 @@ class Grype:
     def scan_directory(
         self,
         source: Annotated[dagger.Directory, Doc("Directory to scan")],
-        source_type: Annotated[str, Doc("Source type")] | None = "dir",
+        source_type: Annotated[str | None, Doc("Source type")] | None = "dir",
         severity_cutoff: (
             Annotated[
-                str,
+                str | None,
                 Doc(
                     """Specify the minimum vulnerability severity to trigger an "error" level ACS result"""
                 ),
@@ -248,9 +248,9 @@ class Grype:
             | None
         ) = None,
         fail: Annotated[
-            bool, Doc("Set to false to avoid failing based on severity-cutoff")
+            bool | None, Doc("Set to false to avoid failing based on severity-cutoff")
         ] = True,
-        output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
+        output_format: Annotated[str | None, Doc("Report output formatter")] = "sarif",
     ) -> dagger.File:
         """Scan directory"""
         output_file = f"$GRYPE_OUTPUT_DIR/report.{output_format}"
@@ -286,19 +286,19 @@ class Grype:
     def with_scan_directory(
         self,
         source: Annotated[dagger.Directory, Doc("Directory to scan")],
-        source_type: Annotated[str, Doc("Source type")] = "registry",
+        source_type: Annotated[str | None, Doc("Source type")] = "registry",
         severity_cutoff: (
             Annotated[
-                str,
+                str | None,
                 Doc(
                     """Specify the minimum vulnerability severity to trigger an "error" level ACS result"""
                 ),
             ]
         ) = "",
         fail: Annotated[
-            bool, Doc("Set to false to avoid failing based on severity-cutoff")
+            bool | None, Doc("Set to false to avoid failing based on severity-cutoff")
         ] = True,
-        output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
+        output_format: Annotated[str | None, Doc("Report output formatter")] = "sarif",
     ) -> Self:
         """Scan dir (for chaining)"""
         self.scan_directory(
@@ -314,19 +314,19 @@ class Grype:
     def scan_file(
         self,
         source: Annotated[dagger.File, Doc("File to scan")],
-        source_type: Annotated[str, Doc("Source type")] = "file",
+        source_type: Annotated[str | None, Doc("Source type")] = "file",
         severity_cutoff: (
             Annotated[
-                str,
+                str | None,
                 Doc(
                     """Specify the minimum vulnerability severity to trigger an "error" level ACS result"""
                 ),
             ]
         ) = "",
         fail: Annotated[
-            bool, Doc("Set to false to avoid failing based on severity-cutoff")
+            bool | None, Doc("Set to false to avoid failing based on severity-cutoff")
         ] = True,
-        output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
+        output_format: Annotated[str | None, Doc("Report output formatter")] = "sarif",
     ) -> dagger.File:
         """Scan file"""
         output_file = f"$GRYPE_OUTPUT_DIR/report.{output_format}"
@@ -359,19 +359,19 @@ class Grype:
     def with_scan_file(
         self,
         source: Annotated[dagger.File, Doc("File to scan")],
-        source_type: Annotated[str, Doc("Source type")] = "registry",
+        source_type: Annotated[str | None, Doc("Source type")] = "registry",
         severity_cutoff: (
             Annotated[
-                str,
+                str | None,
                 Doc(
                     """Specify the minimum vulnerability severity to trigger an "error" level ACS result"""
                 ),
             ]
         ) = "",
         fail: Annotated[
-            bool, Doc("Set to false to avoid failing based on severity-cutoff")
+            bool | None, Doc("Set to false to avoid failing based on severity-cutoff")
         ] = True,
-        output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
+        output_format: Annotated[str | None, Doc("Report output formatter")] = "sarif",
     ) -> Self:
         """Scan file (for chaining)"""
         self.scan_file(
