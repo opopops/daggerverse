@@ -6,7 +6,7 @@ from dagger import Doc, Name, dag, function, object_type
 
 @object_type
 class Cosign:
-    """Cosign CLI"""
+    """Cosign Module"""
 
     image: str
     version: str
@@ -124,6 +124,9 @@ class Cosign:
         password: Annotated[
             dagger.Secret | None, Doc("Cosign password")
         ] = dag.set_secret("cosign_password", ""),
+        identity_token: Annotated[
+            dagger.Secret | None, Doc("Cosign identity token")
+        ] = None,
         oidc_provider: Annotated[
             str, Doc("Specify the provider to get the OIDC token from")
         ] = "",
@@ -147,6 +150,9 @@ class Cosign:
                 "COSIGN_PASSWORD", password
             ).with_secret_variable("COSIGN_PRIVATE_KEY", private_key)
 
+        if identity_token:
+            cmd.extend(["--identity-token", await identity_token.plaintext()])
+
         if oidc_provider:
             cmd.extend(["--oidc-provider", oidc_provider])
 
@@ -168,6 +174,9 @@ class Cosign:
         image: Annotated[str, Doc("Image digest URI")],
         private_key: Annotated[dagger.Secret | None, Doc("Cosign private key")] = None,
         password: Annotated[dagger.Secret | None, Doc("Cosign password")] = None,
+        identity_token: Annotated[
+            dagger.Secret | None, Doc("Cosign identity token")
+        ] = None,
         oidc_provider: Annotated[
             str, Doc("Specify the provider to get the OIDC token from")
         ] = "",
@@ -186,6 +195,7 @@ class Cosign:
             image=image,
             private_key=private_key,
             password=password,
+            identity_token=identity_token,
             oidc_provider=oidc_provider,
             oidc_issuer=oidc_issuer,
             recursive=recursive,
@@ -198,10 +208,13 @@ class Cosign:
         image: Annotated[str, Doc("Image digest URI")],
         predicate: Annotated[dagger.File, Doc("path to the predicate file")],
         private_key: Annotated[dagger.Secret | None, Doc("Cosign private key")] = None,
+        type_: Annotated[str, Doc("Specify a predicate type"), Name("type")] = "",
         password: Annotated[
             dagger.Secret | None, Doc("Cosign password")
         ] = dag.set_secret("cosign_password", ""),
-        type_: Annotated[str, Doc("Specify a predicate type"), Name("type")] = "",
+        identity_token: Annotated[
+            dagger.Secret | None, Doc("Cosign identity token")
+        ] = None,
         oidc_provider: Annotated[
             str, Doc("Specify the provider to get the OIDC token from")
         ] = "",
@@ -233,6 +246,9 @@ class Cosign:
                 "COSIGN_PASSWORD", password
             ).with_secret_variable("COSIGN_PRIVATE_KEY", private_key)
 
+        if identity_token:
+            cmd.extend(["--identity-token", await identity_token.plaintext()])
+
         if type_:
             cmd.extend(["--type", type_])
 
@@ -259,9 +275,12 @@ class Cosign:
         self,
         image: Annotated[str, Doc("Image digest URI")],
         predicate: Annotated[dagger.File, Doc("path to the predicate file")],
+        type_: Annotated[str, Doc("Specify a predicate type"), Name("type")] = "",
         private_key: Annotated[dagger.Secret | None, Doc("Cosign private key")] = None,
         password: Annotated[dagger.Secret | None, Doc("Cosign password")] = None,
-        type_: Annotated[str, Doc("Specify a predicate type"), Name("type")] = "",
+        identity_token: Annotated[
+            dagger.Secret | None, Doc("Cosign identity token")
+        ] = None,
         oidc_provider: Annotated[
             str, Doc("Specify the provider to get the OIDC token from")
         ] = "",
@@ -278,10 +297,11 @@ class Cosign:
         """Attest image with Cosign (For chaining)"""
         await self.attest(
             image=image,
+            predicate=predicate,
+            type_=type_,
             private_key=private_key,
             password=password,
-            type_=type_,
-            predicate=predicate,
+            identity_token=identity_token,
             oidc_provider=oidc_provider,
             oidc_issuer=oidc_issuer,
             recursive=recursive,
