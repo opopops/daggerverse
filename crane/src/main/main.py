@@ -17,11 +17,11 @@ class Crane:
     @classmethod
     async def create(
         cls,
-        image: Annotated[str, Doc("wolfi-base image")] = (
+        image: Annotated[str | None, Doc("wolfi-base image")] = (
             "cgr.dev/chainguard/wolfi-base:latest"
         ),
-        version: Annotated[str, Doc("Crane version")] = "latest",
-        user: Annotated[str, Doc("Image user")] = "65532",
+        version: Annotated[str | None, Doc("Crane version")] = "latest",
+        user: Annotated[str | None, Doc("Image user")] = "65532",
         docker_config: Annotated[dagger.File | None, Doc("Docker config file")] = None,
     ):
         """Constructor"""
@@ -82,7 +82,7 @@ class Crane:
         self,
         username: Annotated[str, Doc("Registry username")],
         secret: Annotated[dagger.Secret, Doc("Registry password")],
-        address: Annotated[str, Doc("Registry host")] = "docker.io",
+        address: Annotated[str | None, Doc("Registry host")] = "docker.io",
     ) -> Self:
         """Authenticate with registry"""
         container: dagger.Container = self.container()
@@ -125,9 +125,11 @@ class Crane:
             dagger.Platform | None, Doc("Specifies the platform")
         ] = None,
         full_ref: Annotated[
-            bool, Doc("Print the full image reference by digest")
+            bool | None, Doc("Print the full image reference by digest")
         ] = False,
-        tarball: Annotated[str, Doc("Path to tarball containing the image")] = "",
+        tarball: Annotated[
+            str | None, Doc("Path to tarball containing the image")
+        ] = "",
     ) -> str:
         """Tag remote image without downloading it."""
         container: dagger.Container = self.container()
@@ -158,9 +160,9 @@ class Crane:
         jobs: Annotated[
             int | None, Doc("The maximum number of concurrent copies")
         ] = None,
-        all_tags: Annotated[bool, Doc("Copy all tags from SRC to DST")] = False,
+        all_tags: Annotated[bool | None, Doc("Copy all tags from SRC to DST")] = False,
         no_clobber: Annotated[
-            bool, Doc("Avoid overwriting existing tags in DST")
+            bool | None, Doc("Avoid overwriting existing tags in DST")
         ] = False,
     ) -> str:
         """Copy images."""
@@ -193,9 +195,9 @@ class Crane:
         ] = None,
         jobs: Annotated[int, Doc("The maximum number of concurrent copies")]
         | None = None,
-        all_tags: Annotated[bool, Doc("Copy all tags from SRC to DST")] = False,
+        all_tags: Annotated[bool | None, Doc("Copy all tags from SRC to DST")] = False,
         no_clobber: Annotated[
-            bool, Doc("Avoid overwriting existing tags in DST")
+            bool | None, Doc("Avoid overwriting existing tags in DST")
         ] = False,
     ) -> Self:
         """Copy images (For chaining)."""
@@ -248,7 +250,7 @@ class Crane:
         path: Annotated[dagger.Directory, Doc("OCI layout dir")],
         image: Annotated[str, Doc("Image tag")],
         index: Annotated[
-            bool, Doc("Push a collection of images as a single index")
+            bool | None, Doc("Push a collection of images as a single index")
         ] = False,
         platform: Annotated[
             dagger.Platform | None, Doc("Specifies the platform")
@@ -277,7 +279,7 @@ class Crane:
         path: Annotated[dagger.Directory, Doc("OCI layout dir")],
         image: Annotated[str, Doc("Image tag")],
         index: Annotated[
-            bool, Doc("Push a collection of images as a single index")
+            bool | None, Doc("Push a collection of images as a single index")
         ] = False,
         platform: Annotated[
             dagger.Platform | None, Doc("Specifies the platform")
@@ -293,7 +295,7 @@ class Crane:
         tarball: Annotated[dagger.File, Doc("Image tarball")],
         image: Annotated[str, Doc("Image tag")],
         index: Annotated[
-            bool, Doc("Push a collection of images as a single index")
+            bool | None, Doc("Push a collection of images as a single index")
         ] = False,
         platform: Annotated[
             dagger.Platform | None, Doc("Specifies the platform")
