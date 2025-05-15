@@ -18,11 +18,11 @@ class Melange:
     @classmethod
     async def create(
         cls,
-        image: Annotated[str, Doc("wolfi-base image")] = (
+        image: Annotated[str | None, Doc("wolfi-base image")] = (
             "cgr.dev/chainguard/wolfi-base:latest"
         ),
-        version: Annotated[str, Doc("Melange version")] = "latest",
-        user: Annotated[str, Doc("Image user")] = "0",
+        version: Annotated[str | None, Doc("Melange version")] = "latest",
+        user: Annotated[str | None, Doc("Image user")] = "0",
         signing_key: Annotated[dagger.Secret | None, Doc("Signing key")] = None,
     ):
         """Constructor"""
@@ -86,7 +86,9 @@ class Melange:
     @function
     async def keygen(
         self,
-        key_size: Annotated[int, Doc("the size of the prime to calculate ")] = 4096,
+        key_size: Annotated[
+            int | None, Doc("the size of the prime to calculate ")
+        ] = 4096,
     ) -> dagger.Directory:
         """Generate a key for package signing"""
         cmd = ["keygen", "--key-size", str(key_size), "$MELANGE_SIGNING_KEY"]
@@ -108,7 +110,9 @@ class Melange:
     @function
     async def with_keygen(
         self,
-        key_size: Annotated[int, Doc("the size of the prime to calculate ")] = 4096,
+        key_size: Annotated[
+            int | None, Doc("the size of the prime to calculate ")
+        ] = 4096,
     ) -> Self:
         """Generate a key for package signing for chaining"""
         await self.keygen(key_size=key_size)
@@ -163,12 +167,13 @@ class Melange:
     async def build(
         self,
         config: Annotated[dagger.File, Doc("Config file")],
-        version: Annotated[str, Doc("Version to bump to")] = "",
+        version: Annotated[str | None, Doc("Version to bump to")] = "",
         source_dir: Annotated[
             dagger.Directory | None, Doc("Directory used for included sources")
         ] = None,
-        signing_key: Annotated[dagger.Secret, Doc("Key to use for signing")]
-        | None = None,
+        signing_key: Annotated[
+            dagger.Secret | None, Doc("Key to use for signing")
+        ] = None,
         archs: Annotated[
             list[dagger.Platform] | None, Doc("Target architectures"), Name("arch")
         ] = None,
@@ -241,7 +246,7 @@ class Melange:
     async def with_build(
         self,
         config: Annotated[dagger.File, Doc("Config file")],
-        version: Annotated[str, Doc("Version to bump to")] = "",
+        version: Annotated[str | None, Doc("Version to bump to")] = "",
         signing_key: Annotated[
             dagger.Secret | None, Doc("Key to use for signing")
         ] = None,
