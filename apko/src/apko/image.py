@@ -61,7 +61,7 @@ class Image:
         self,
         username: Annotated[str, Doc("Registry username")],
         secret: Annotated[dagger.Secret, Doc("Registry password")],
-        address: Annotated[str, Doc("Registry host")] = "docker.io",
+        address: Annotated[str | None, Doc("Registry host")] = "docker.io",
     ) -> Self:
         """Authenticates with registry"""
         self.container_ = self.container().with_registry_auth(
@@ -150,14 +150,14 @@ class Image:
         self,
         severity_cutoff: (
             Annotated[
-                str,
+                str | None,
                 Doc("Specify the minimum vulnerability severity to trigger an error"),
             ]
         ) = "",
         fail: Annotated[
-            bool, Doc("Set to false to avoid failing based on severity-cutoff")
+            bool | None, Doc("Set to false to avoid failing based on severity-cutoff")
         ] = True,
-        output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
+        output_format: Annotated[str | None, Doc("Report output formatter")] = "sarif",
     ) -> dagger.File:
         """Scan image using Grype"""
         grype = self.grype()
@@ -173,14 +173,14 @@ class Image:
         self,
         severity_cutoff: (
             Annotated[
-                str,
+                str | None,
                 Doc("Specify the minimum vulnerability severity to trigger an error"),
             ]
         ) = "",
         fail: Annotated[
-            bool, Doc("Set to false to avoid failing based on severity-cutoff")
+            bool | None, Doc("Set to false to avoid failing based on severity-cutoff")
         ] = True,
-        output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
+        output_format: Annotated[str | None, Doc("Report output formatter")] = "sarif",
     ) -> Self:
         """Scan image using Grype (for chaining)"""
         self.scan(
@@ -194,13 +194,13 @@ class Image:
         private_key: Annotated[dagger.Secret | None, Doc("Cosign private key")] = None,
         password: Annotated[dagger.Secret | None, Doc("Cosign password")] = None,
         oidc_provider: Annotated[
-            str, Doc("Specify the provider to get the OIDC token from")
+            str | None, Doc("Specify the provider to get the OIDC token from")
         ] = "",
         oidc_issuer: Annotated[
-            str, Doc("OIDC provider to be used to issue ID toke")
+            str | None, Doc("OIDC provider to be used to issue ID toke")
         ] = "",
         recursive: Annotated[
-            bool,
+            bool | None,
             Doc(
                 "If a multi-arch image is specified, additionally sign each discrete image"
             ),
@@ -222,13 +222,13 @@ class Image:
         private_key: Annotated[dagger.Secret | None, Doc("Cosign private key")] = None,
         password: Annotated[dagger.Secret | None, Doc("Cosign password")] = None,
         oidc_provider: Annotated[
-            str, Doc("Specify the provider to get the OIDC token from")
+            str | None, Doc("Specify the provider to get the OIDC token from")
         ] = "",
         oidc_issuer: Annotated[
-            str, Doc("OIDC provider to be used to issue ID toke")
+            str | None, Doc("OIDC provider to be used to issue ID toke")
         ] = "",
         recursive: Annotated[
-            bool,
+            bool | None,
             Doc(
                 "If a multi-arch image is specified, additionally sign each discrete image"
             ),

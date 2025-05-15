@@ -74,7 +74,7 @@ class Build:
         self,
         username: Annotated[str, Doc("Registry username")],
         secret: Annotated[dagger.Secret, Doc("Registry password")],
-        address: Annotated[str, Doc("Registry host")] = "docker.io",
+        address: Annotated[str | None, Doc("Registry host")] = "docker.io",
     ) -> Self:
         """Authenticates with registry"""
         self.container_ = self.container().with_registry_auth(
@@ -101,7 +101,7 @@ class Build:
         self,
         severity_cutoff: (
             Annotated[
-                str,
+                str | None,
                 Doc("Specify the minimum vulnerability severity to trigger an error"),
             ]
         ) = "",
@@ -125,12 +125,12 @@ class Build:
         self,
         severity_cutoff: (
             Annotated[
-                str,
+                str | None,
                 Doc("Specify the minimum vulnerability severity to trigger an error"),
             ]
         ) = "",
         fail: Annotated[
-            bool, Doc("Set to false to avoid failing based on severity-cutoff")
+            bool | None, Doc("Set to false to avoid failing based on severity-cutoff")
         ] = True,
         output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
     ) -> Self:

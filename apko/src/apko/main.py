@@ -19,11 +19,11 @@ class Apko:
     @classmethod
     async def create(
         cls,
-        image: Annotated[str, Doc("wolfi-base image")] = (
+        image: Annotated[str | None, Doc("wolfi-base image")] = (
             "cgr.dev/chainguard/wolfi-base:latest"
         ),
-        version: Annotated[str, Doc("Apko version")] = "latest",
-        user: Annotated[str, Doc("Image user")] = "65532",
+        version: Annotated[str | None, Doc("Apko version")] = "latest",
+        user: Annotated[str | None, Doc("Image user")] = "65532",
     ):
         """Constructor"""
         return cls(
@@ -94,7 +94,7 @@ class Apko:
         self,
         username: Annotated[str, Doc("Registry username")],
         secret: Annotated[dagger.Secret, Doc("Registry password")],
-        address: Annotated[str, Doc("Registry host")] = "docker.io",
+        address: Annotated[str | None, Doc("Registry host")] = "docker.io",
     ) -> Self:
         """Authenticates with registry"""
         self.container = self.container.with_registry_auth(
@@ -120,10 +120,13 @@ class Apko:
     async def build(
         self,
         workdir: Annotated[
-            dagger.Directory, DefaultPath("/"), Doc("Working dir"), Name("source")
+            dagger.Directory | None,
+            DefaultPath("/"),
+            Doc("Working dir"),
+            Name("source"),
         ],
         config: Annotated[dagger.File, Doc("Config file")],
-        tag: Annotated[str, Doc("Image tag")] = "apko-build",
+        tag: Annotated[str | None, Doc("Image tag")] = "apko-build",
         platforms: Annotated[
             list[dagger.Platform] | None, Doc("Platforms"), Name("arch")
         ] = None,
@@ -202,16 +205,19 @@ class Apko:
     async def publish(
         self,
         workdir: Annotated[
-            dagger.Directory, DefaultPath("/"), Doc("Working dir"), Name("source")
+            dagger.Directory | None,
+            DefaultPath("/"),
+            Doc("Working dir"),
+            Name("source"),
         ],
         config: Annotated[dagger.File, Doc("Config file")],
         tags: Annotated[list[str], Doc("Image tags"), Name("tag")],
-        sbom: Annotated[bool, Doc("generate an SBOM")] = True,
+        sbom: Annotated[bool | None, Doc("generate an SBOM")] = True,
         platforms: Annotated[
             list[dagger.Platform] | None, Doc("Platforms"), Name("arch")
         ] = None,
         local: Annotated[
-            bool, Doc("Publish image just to local Docker daemon")
+            bool | None, Doc("Publish image just to local Docker daemon")
         ] = False,
         keyring_append: Annotated[
             dagger.File | None, Doc("Path to extra keys to include in the keyring")
