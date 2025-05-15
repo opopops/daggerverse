@@ -17,11 +17,11 @@ class Cosign:
     @classmethod
     async def create(
         cls,
-        image: Annotated[str, Doc("wolfi-base image")] = (
+        image: Annotated[str | None, Doc("wolfi-base image")] = (
             "cgr.dev/chainguard/wolfi-base:latest"
         ),
-        version: Annotated[str, Doc("Cosign version")] = "latest",
-        user: Annotated[str, Doc("Image user")] = "65532",
+        version: Annotated[str | None, Doc("Cosign version")] = "latest",
+        user: Annotated[str | None, Doc("Image user")] = "65532",
         docker_config: Annotated[dagger.File | None, Doc("Docker config file")] = None,
     ):
         """Constructor"""
@@ -81,7 +81,7 @@ class Cosign:
         self,
         username: Annotated[str, Doc("Registry username")],
         secret: Annotated[dagger.Secret, Doc("Registry password")],
-        address: Annotated[str, Doc("Registry host")] = "docker.io",
+        address: Annotated[str | None, Doc("Registry host")] = "docker.io",
     ) -> Self:
         """Authenticate with registry"""
         container: dagger.Container = self.container()
@@ -128,13 +128,13 @@ class Cosign:
             dagger.Secret | None, Doc("Cosign identity token")
         ] = None,
         oidc_provider: Annotated[
-            str, Doc("Specify the provider to get the OIDC token from")
+            str | None, Doc("Specify the provider to get the OIDC token from")
         ] = "",
         oidc_issuer: Annotated[
-            str, Doc("OIDC provider to be used to issue ID toke")
+            str | None, Doc("OIDC provider to be used to issue ID toke")
         ] = "",
         recursive: Annotated[
-            bool,
+            bool | None,
             Doc(
                 "If a multi-arch image is specified, additionally sign each discrete image"
             ),
@@ -178,13 +178,13 @@ class Cosign:
             dagger.Secret | None, Doc("Cosign identity token")
         ] = None,
         oidc_provider: Annotated[
-            str, Doc("Specify the provider to get the OIDC token from")
+            str | None, Doc("Specify the provider to get the OIDC token from")
         ] = "",
         oidc_issuer: Annotated[
-            str, Doc("OIDC provider to be used to issue ID toke")
+            str | None, Doc("OIDC provider to be used to issue ID toke")
         ] = "",
         recursive: Annotated[
-            bool,
+            bool | None,
             Doc(
                 "If a multi-arch image is specified, additionally sign each discrete image"
             ),
@@ -207,8 +207,8 @@ class Cosign:
         self,
         image: Annotated[str, Doc("Image digest URI")],
         predicate: Annotated[dagger.File, Doc("path to the predicate file")],
+        type_: Annotated[str, Doc("Specify a predicate type"), Name("type")],
         private_key: Annotated[dagger.Secret | None, Doc("Cosign private key")] = None,
-        type_: Annotated[str, Doc("Specify a predicate type"), Name("type")] = "",
         password: Annotated[
             dagger.Secret | None, Doc("Cosign password")
         ] = dag.set_secret("cosign_password", ""),
@@ -216,13 +216,13 @@ class Cosign:
             dagger.Secret | None, Doc("Cosign identity token")
         ] = None,
         oidc_provider: Annotated[
-            str, Doc("Specify the provider to get the OIDC token from")
+            str | None, Doc("Specify the provider to get the OIDC token from")
         ] = "",
         oidc_issuer: Annotated[
-            str, Doc("OIDC provider to be used to issue ID toke")
+            str | None, Doc("OIDC provider to be used to issue ID toke")
         ] = "",
         recursive: Annotated[
-            bool,
+            bool | None,
             Doc(
                 "If a multi-arch image is specified, additionally sign each discrete image"
             ),
@@ -275,20 +275,20 @@ class Cosign:
         self,
         image: Annotated[str, Doc("Image digest URI")],
         predicate: Annotated[dagger.File, Doc("path to the predicate file")],
-        type_: Annotated[str, Doc("Specify a predicate type"), Name("type")] = "",
+        type_: Annotated[str, Doc("Specify a predicate type"), Name("type")],
         private_key: Annotated[dagger.Secret | None, Doc("Cosign private key")] = None,
         password: Annotated[dagger.Secret | None, Doc("Cosign password")] = None,
         identity_token: Annotated[
             dagger.Secret | None, Doc("Cosign identity token")
         ] = None,
         oidc_provider: Annotated[
-            str, Doc("Specify the provider to get the OIDC token from")
+            str | None, Doc("Specify the provider to get the OIDC token from")
         ] = "",
         oidc_issuer: Annotated[
-            str, Doc("OIDC provider to be used to issue ID toke")
+            str | None, Doc("OIDC provider to be used to issue ID toke")
         ] = "",
         recursive: Annotated[
-            bool,
+            bool | None,
             Doc(
                 "If a multi-arch image is specified, additionally sign each discrete image"
             ),
@@ -320,21 +320,21 @@ class Cosign:
             ),
         ] = None,
         only: Annotated[
-            list[str],
+            list[str] | None,
             Doc(
                 "Custom string array to only copy specific items. ex: --only=sig,att,sbom"
             ),
         ] = (),
         force: Annotated[
-            bool,
+            bool | None,
             Doc("Overwrite destination image(s), if necessary"),
         ] = False,
         allow_http_registry: Annotated[
-            bool,
+            bool | None,
             Doc("Whether to allow using HTTP protocol while connecting to registries"),
         ] = False,
         allow_insecure_registry: Annotated[
-            bool, Doc("whether to allow insecure connections to registries")
+            bool | None, Doc("whether to allow insecure connections to registries")
         ] = False,
     ) -> str:
         """Copy the supplied container image and signatures"""
@@ -364,21 +364,21 @@ class Cosign:
             ),
         ] = None,
         only: Annotated[
-            list[str],
+            list[str] | None,
             Doc(
                 "Custom string array to only copy specific items. ex: --only=sig,att,sbom"
             ),
         ] = (),
         force: Annotated[
-            bool,
+            bool | None,
             Doc("Overwrite destination image(s), if necessary"),
         ] = False,
         allow_http_registry: Annotated[
-            bool,
+            bool | None,
             Doc("Whether to allow using HTTP protocol while connecting to registries"),
         ] = False,
         allow_insecure_registry: Annotated[
-            bool, Doc("whether to allow insecure connections to registries")
+            bool | None, Doc("whether to allow insecure connections to registries")
         ] = False,
     ) -> Self:
         """Copy the supplied container image and signatures (for chaining)"""
