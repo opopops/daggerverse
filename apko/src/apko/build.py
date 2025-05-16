@@ -106,14 +106,13 @@ class Build:
             ]
         ) = "",
         fail: Annotated[
-            bool, Doc("Set to false to avoid failing based on severity-cutoff")
+            bool | None, Doc("Set to false to avoid failing based on severity-cutoff")
         ] = True,
-        output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
+        output_format: Annotated[str | None, Doc("Report output formatter")] = "table",
     ) -> dagger.File:
         """Scan build result using Grype"""
-        grype = dag.grype()
-        return grype.scan_file(
-            source=self.as_tarball(),
+        return dag.grype().scan_file(
+            source=self.container().as_tarball(),
             source_type="oci-archive",
             severity_cutoff=severity_cutoff,
             fail=fail,
@@ -121,7 +120,7 @@ class Build:
         )
 
     @function
-    def with_scan(
+    async def with_scan(
         self,
         severity_cutoff: (
             Annotated[
@@ -132,12 +131,13 @@ class Build:
         fail: Annotated[
             bool | None, Doc("Set to false to avoid failing based on severity-cutoff")
         ] = True,
-        output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
+        output_format: Annotated[str | None, Doc("Report output formatter")] = "table",
     ) -> Self:
         """Scan build result using Grype (for chaining)"""
-        self.scan(
+        report: dagger.File = self.scan(
             severity_cutoff=severity_cutoff, fail=fail, output_format=output_format
         )
+        await report.contents()
         return self
 
     @function

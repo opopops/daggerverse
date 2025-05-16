@@ -157,7 +157,7 @@ class Image:
         fail: Annotated[
             bool | None, Doc("Set to false to avoid failing based on severity-cutoff")
         ] = True,
-        output_format: Annotated[str | None, Doc("Report output formatter")] = "sarif",
+        output_format: Annotated[str | None, Doc("Report output formatter")] = "table",
     ) -> dagger.File:
         """Scan image using Grype"""
         grype = self.grype()
@@ -169,7 +169,7 @@ class Image:
         )
 
     @function
-    def with_scan(
+    async def with_scan(
         self,
         severity_cutoff: (
             Annotated[
@@ -180,12 +180,13 @@ class Image:
         fail: Annotated[
             bool | None, Doc("Set to false to avoid failing based on severity-cutoff")
         ] = True,
-        output_format: Annotated[str | None, Doc("Report output formatter")] = "sarif",
+        output_format: Annotated[str | None, Doc("Report output formatter")] = "table",
     ) -> Self:
         """Scan image using Grype (for chaining)"""
-        self.scan(
+        report: dagger.File = self.scan(
             severity_cutoff=severity_cutoff, fail=fail, output_format=output_format
         )
+        await report.contents()
         return self
 
     @function
