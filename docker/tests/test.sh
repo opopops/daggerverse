@@ -11,10 +11,25 @@ cd "$MODULE_DIR"
 dagger call --progress=plain \
   build \
     --context ./tests  \
-    --file ./tests/files/Dockerfile \
+    --dockerfile files/Dockerfile \
     --platform linux/amd64,linux/arm64 \
   with-scan \
     --severity-cutoff critical \
   publish \
-    --image ttl.sh/opopops-daggerverse-docker \
+    --tag ttl.sh/opopops-daggerverse-docker \
+  ref
+
+dagger call --progress=plain \
+  with-registry-auth \
+    --username ${DOCKERHUB_USERNAME} \
+    --secret env:DOCKERHUB_TOKEN \
+    --address docker.io \
+  build \
+    --context ./tests  \
+    --dockerfile files/Dockerfile \
+    --platform linux/amd64,linux/arm64 \
+  with-scan \
+    --severity-cutoff critical \
+  publish \
+    --tag docker.io/${DOCKERHUB_USERNAME}/private:docker \
   ref

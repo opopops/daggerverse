@@ -1,7 +1,6 @@
 from typing import Annotated, Self
-import dataclasses
 import dagger
-from dagger import Doc, dag, function, object_type
+from dagger import Doc, Name, dag, function, object_type
 
 from .image import Image
 
@@ -10,31 +9,32 @@ from .image import Image
 class Build:
     """Docker Build"""
 
-    platform_variants: Annotated[list[dagger.Container], Doc("Platform variants build")]
+    container_: dagger.Container
+    platform_variants_: list[dagger.Container] | None
 
-    container_: dagger.Container = dataclasses.field(
-        default_factory=lambda: dag.container()
-    )
-    platform_container_: dagger.Container | None = None
+    @classmethod
+    async def create(
+        cls,
+        container: Annotated[dagger.Container, Doc("Container")],
+        platform_variants: Annotated[
+            list[dagger.Container | None], Doc("Platform variants")
+        ] = None,
+    ):
+        """Constructor"""
+        return cls(container_=container, platform_variants_=platform_variants)
 
     @function
     async def platforms(self) -> list[dagger.Platform]:
         """Retrieves build platforms"""
-        platforms: list[dagger.Platform] = []
-        for platform_variant in self.platform_variants:
+        platforms: list[dagger.Platform] = [await self.container_.platform()]
+        for platform_variant in self.platform_variants_:
             platforms.append(await platform_variant.platform())
         return platforms
 
-    @function(name="container")
-    async def platform_container(self) -> dagger.Container:
+    @function()
+    async def container(self) -> dagger.Container:
         """Returns the current host platform variant container"""
-        if self.platform_container_:
-            return self.platform_container_
-        container: dagger.Container = dag.container()
-        for platform_variant in self.platform_variants:
-            if await platform_variant.platform() == await container.platform():
-                self.platform_container_ = platform_variant
-                return self.platform_container_
+        return self.container_
 
     @function
     async def with_registry_auth(
@@ -51,21 +51,23 @@ class Build:
 
     @function
     async def as_tarball(
-        self, compress: Annotated[bool, Doc("Enable compression")] = False
+        self, compress: Annotated[bool | None, Doc("Enable compression")] = False
     ) -> dagger.File:
         """Export container as tarball"""
         forced_compression = dagger.ImageLayerCompression("Uncompressed")
         if compress:
             forced_compression = dagger.ImageLayerCompression("Gzip")
-        container: dagger.Container = await self.platform_container()
-        return container.as_tarball(forced_compression=forced_compression)
+        return self.container_.as_tarball(
+            platform_variants=self.platform_variants_,
+            forced_compression=forced_compression,
+        )
 
     @function
     async def scan(
         self,
         severity_cutoff: (
             Annotated[
-                str,
+                str | None,
                 Doc(
                     """Specify the minimum vulnerability severity to trigger an "error" level ACS result"""
                 ),
@@ -73,13 +75,12 @@ class Build:
             | None
         ) = None,
         fail: Annotated[
-            bool, Doc("Set to false to avoid failing based on severity-cutoff")
+            bool | None, Doc("Set to false to avoid failing based on severity-cutoff")
         ] = True,
-        output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
+        output_format: Annotated[str | None, Doc("Report output formatter")] = "sarif",
     ) -> dagger.File:
         """Scan build result using Grype"""
-        grype = dag.grype()
-        return grype.scan_file(
+        return dag.grype().scan_file(
             source=await self.as_tarball(),
             source_type="oci-archive",
             severity_cutoff=severity_cutoff,
@@ -92,7 +93,7 @@ class Build:
         self,
         severity_cutoff: (
             Annotated[
-                str,
+                str | None,
                 Doc(
                     """Specify the minimum vulnerability severity to trigger an "error" level ACS result"""
                 ),
@@ -100,9 +101,9 @@ class Build:
             | None
         ) = None,
         fail: Annotated[
-            bool, Doc("Set to false to avoid failing based on severity-cutoff")
+            bool | None, Doc("Set to false to avoid failing based on severity-cutoff")
         ] = True,
-        output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
+        output_format: Annotated[str | None, Doc("Report output formatter")] = "sarif",
     ) -> Self:
         """Scan build result using Grype (for chaining)"""
         await self.scan(
@@ -111,11 +112,13 @@ class Build:
         return self
 
     @function
-    async def publish(self, image: Annotated[str, Doc("Image tags")]) -> Image:
-        """Publish multi-arch image"""
-        ref: str = None
-        container: dagger.Container = self.container_
-        ref = await container.publish(
-            address=image, platform_variants=self.platform_variants
-        )
-        return Image(address=ref, container_=self.container_)
+    async def publish(
+        self, tags: Annotated[list[str], Doc("Image tags"), Name("tag")]
+    ) -> Image:
+        """Publish image"""
+        # additionnal tags
+        for tag in tags:
+            await self.container_.publish(
+                address=tag, platform_variants=self.platform_variants_
+            )
+        return Image(address=tags[0], container_=self.container_)

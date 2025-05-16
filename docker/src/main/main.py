@@ -11,24 +11,22 @@ from .build import Build
 class Docker:
     """Docker"""
 
-    container_: dagger.Container | None = None
+    container: dagger.Container | None = None
 
-    def container(self, platform: dagger.Platform | None = None) -> dagger.Container:
-        """Returns authentcated container"""
-        if self.container_:
-            return self.container_
-        self.container_ = dag.container(platform=platform)
-        return self.container_
+    @classmethod
+    async def create(cls):
+        """Constructor"""
+        return cls(container=dag.container())
 
     @function
     async def with_registry_auth(
         self,
         username: Annotated[str, Doc("Registry username")],
         secret: Annotated[dagger.Secret, Doc("Registry password")],
-        address: Annotated[str, Doc("Registry host")] = "docker.io",
+        address: Annotated[str | None, Doc("Registry host")] = "docker.io",
     ) -> Self:
         """Authenticate with registry"""
-        self.container_ = self.container().with_registry_auth(
+        self.container = self.container.with_registry_auth(
             address=address, username=username, secret=secret
         )
         return self
@@ -36,46 +34,44 @@ class Docker:
     @function
     async def build(
         self,
-        context: Annotated[dagger.Directory, DefaultPath("."), Doc("Context")],
+        context: Annotated[dagger.Directory | None, DefaultPath("."), Doc("Context")],
         dockerfile: Annotated[
-            dagger.File, Doc("Location of the Dockerfile"), Name("file")
-        ],
-        target: Annotated[str, Doc("Set the target build stage to build")] = "",
+            str | None, Doc("Location of the Dockerfile")
+        ] = "Dockerfile",
+        target: Annotated[str | None, Doc("Set the target build stage to build")] = "",
         build_args: Annotated[
-            list[str],
+            list[str] | None,
             Doc("Build args to pass to the build in the format of name=value"),
             Name("build_arg"),
         ] = (),
         secrets: Annotated[
-            list[dagger.Secret], Doc("Secrets to pass to the build"), Name("secret")
+            list[dagger.Secret] | None,
+            Doc("Secrets to pass to the build"),
+            Name("secret"),
         ] = (),
         platforms: Annotated[
-            list[dagger.Platform],
+            list[dagger.Platform] | None,
             Doc("Set target platform for build"),
             Name("platform"),
         ] = (),
     ) -> Build:
         """Build multi-arch OCI image"""
+        current_platform: dagger.Platform = await self.container.platform()
         platform_variants: list[dagger.Container] = []
         dagger_build_args: list[dagger.BuildArg] = []
 
-        # get build context with dockerfile added
-        workspace = (
-            dag.container()
-            .with_directory("/src", context)
-            .with_workdir("/src")
-            .with_file("/src/dagger.Dockerfile", dockerfile)
-            .directory("/src")
-        )
-
         async def build_(
-            container: dagger.Container,
+            platform: dagger.Platform,
             context: dagger.Directory,
             dockerfile: str,
             target: str,
             build_args: list[dagger.BuildArg],
             secrets: list[dagger.Secret],
         ):
+            container: dagger.Container = dag.container(platform=platform)
+            if platform == current_platform:
+                container = self.container
+
             container = await container.build(
                 context=context,
                 dockerfile=dockerfile,
@@ -83,7 +79,10 @@ class Docker:
                 build_args=build_args,
                 secrets=secrets,
             )
-            platform_variants.append(container)
+            if platform == current_platform:
+                self.container = container
+            else:
+                platform_variants.append(container)
 
         for build_arg in build_args:
             build_arg_split = build_arg.split("=")
@@ -96,22 +95,20 @@ class Docker:
                 for platform in platforms:
                     tg.create_task(
                         build_(
-                            container=dag.container(platform=platform),
-                            context=workspace,
-                            dockerfile="dagger.Dockerfile",
+                            platform=platform,
+                            context=context,
+                            dockerfile=dockerfile,
                             target=target,
                             build_args=dagger_build_args,
                             secrets=secrets,
                         )
                     )
         else:
-            platform_variants.append(
-                self.container().build(
-                    context=workspace,
-                    dockerfile="dagger.Dockerfile",
-                    target=target,
-                    build_args=dagger_build_args,
-                    secrets=secrets,
-                )
+            self.container = self.container.build(
+                context=context,
+                dockerfile=dockerfile,
+                target=target,
+                build_args=dagger_build_args,
+                secrets=secrets,
             )
-        return Build(platform_variants=platform_variants, container_=self.container())
+        return Build(platform_variants_=platform_variants, container_=self.container)
