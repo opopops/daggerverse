@@ -50,7 +50,7 @@ class Build:
         return self
 
     @function
-    async def as_tarball(
+    def as_tarball(
         self, compress: Annotated[bool | None, Doc("Enable compression")] = False
     ) -> dagger.File:
         """Export container as tarball"""
@@ -81,7 +81,7 @@ class Build:
     ) -> dagger.File:
         """Scan build result using Grype"""
         return dag.grype().scan_file(
-            source=await self.as_tarball(),
+            source=self.container_.as_tarball(),
             source_type="oci-archive",
             severity_cutoff=severity_cutoff,
             fail=fail,
