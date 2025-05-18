@@ -120,6 +120,9 @@ class Cosign:
     async def sign(
         self,
         image: Annotated[str, Doc("Image digest URI")],
+        annotations: Annotated[
+            list[str] | None, Doc("Extra key=value pairs to sign")
+        ] = (),
         private_key: Annotated[dagger.Secret | None, Doc("Cosign private key")] = None,
         password: Annotated[
             dagger.Secret | None, Doc("Cosign password")
@@ -143,6 +146,9 @@ class Cosign:
         """Sign image with Cosign"""
         container = self.container()
         cmd = ["sign", image]
+
+        for annotation in annotations:
+            cmd.extend(["--annotations", annotation])
 
         if private_key:
             cmd.extend(["--key", "env://COSIGN_PRIVATE_KEY"])
@@ -172,6 +178,9 @@ class Cosign:
     async def with_sign(
         self,
         image: Annotated[str, Doc("Image digest URI")],
+        annotations: Annotated[
+            list[str] | None, Doc("Extra key=value pairs to sign")
+        ] = (),
         private_key: Annotated[dagger.Secret | None, Doc("Cosign private key")] = None,
         password: Annotated[dagger.Secret | None, Doc("Cosign password")] = None,
         identity_token: Annotated[
@@ -193,6 +202,7 @@ class Cosign:
         """Sign image with Cosign (For chaining)"""
         await self.sign(
             image=image,
+            annotations=annotations,
             private_key=private_key,
             password=password,
             identity_token=identity_token,
