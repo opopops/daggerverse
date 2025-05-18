@@ -198,7 +198,10 @@ class Apko:
                 )
 
         return Build(
-            apko_=apko, container_=self.container, platform_variants_=platform_variants
+            apko_=apko,
+            container_=self.container,
+            sbom_=apko.directory("$APKO_SBOM_DIR", expand=True),
+            platform_variants_=platform_variants,
         )
 
     @function
@@ -212,7 +215,7 @@ class Apko:
         ],
         config: Annotated[dagger.File, Doc("Config file")],
         tags: Annotated[list[str], Doc("Image tags"), Name("tag")],
-        sbom: Annotated[bool | None, Doc("generate an SBOM")] = True,
+        sbom: Annotated[bool | None, Doc("generate SBOM")] = True,
         platforms: Annotated[
             list[dagger.Platform] | None, Doc("Platforms"), Name("arch")
         ] = None,
@@ -276,5 +279,23 @@ class Apko:
         if local:
             cmd.append("--local")
 
-        apko = await apko.with_exec(cmd, use_entrypoint=True, expand=True)
-        return Image(address=tags[0], apko_=apko, container_=self.container)
+        # Publish the container
+        apko = apko.with_exec(cmd, use_entrypoint=True, expand=True)
+
+        # Retrieve platform variants from published container
+        platform_variants: list[dagger.Container] = []
+        for platform in platforms:
+            if platform == await self.container.platform():
+                self.container = self.container.from_(tags[0])
+            else:
+                platform_variants.append(
+                    dag.container(platform=platform).from_(tags[0])
+                )
+
+        return Image(
+            address_=tags[0],
+            apko_=apko,
+            container_=self.container,
+            sbom_=apko.directory("$APKO_SBOM_DIR", expand=True),
+            platform_variants_=platform_variants,
+        )

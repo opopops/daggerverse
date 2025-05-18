@@ -2,16 +2,18 @@ import json
 from typing import Annotated, Self
 from urllib.parse import urlparse
 import dagger
-from dagger import Doc, dag, field, function, object_type
+from dagger import Doc, dag, function, object_type
 
 
 @object_type
 class Image:
     """Apko Image"""
 
-    address: str = field()
+    address_: str
     apko_: dagger.Container
     container_: dagger.Container | None
+    platform_variants_: list[dagger.Container] | None
+    sbom_: dagger.Directory | None
 
     @classmethod
     async def create(
@@ -19,11 +21,21 @@ class Image:
         address: Annotated[str, Doc("Image address")],
         apko: Annotated[dagger.Container, Doc("Apko container")],
         container: Annotated[dagger.Container | None, Doc("Image container")] = None,
+        platform_variants: Annotated[
+            list[dagger.Container | None], Doc("Platform variants")
+        ] = None,
+        sbom: Annotated[dagger.Directory | None, Doc("Image SBOMs directory")] = None,
     ):
         """Constructor"""
         if container is None:
             container = dag.container().from_(address)
-        return cls(address=address, apko_=apko, container_=container)
+        return cls(
+            address_=address,
+            apko_=apko,
+            container_=container,
+            platform_variants_=platform_variants,
+            sbom_=sbom,
+        )
 
     def docker_config(self) -> dagger.File:
         """Returns the docker config file"""
@@ -47,14 +59,72 @@ class Image:
         return self.apko_
 
     @function
+    def address(self) -> str:
+        """Returns the image address"""
+        return self.address_
+
+    @function
     def container(self) -> dagger.Container:
         """Returns the image container"""
         return self.container_
 
     @function
+    def sbom(self) -> dagger.Directory:
+        """Returns the SBOM directory"""
+        return self.sbom_
+
+    @function
     def as_tarball(self) -> dagger.File:
         """Returns the image tarball"""
         return self.container().as_tarball()
+
+    @function
+    async def platforms(self) -> list[dagger.Platform]:
+        """Retrieves image platforms"""
+        platforms: list[dagger.Platform] = []
+        crane = self.crane()
+        manifest = json.loads(await crane.manifest(image=self.address_))
+        for entry in manifest.get("manifests", []):
+            platform = entry["platform"]
+            architecture = platform["architecture"]
+            os = platform["os"]
+            platforms.append(dagger.Platform(f"{os}/{architecture}"))
+        return platforms
+
+    @function
+    def platform_container(
+        self, platform: Annotated[dagger.Platform | None, Doc("Platform")] = None
+    ) -> dagger.Container:
+        """Returns the image container for the specified platform (current platform if not specified)"""
+        return dag.container(platform=platform).from_(address=self.address_)
+
+    @function
+    def platform_tarball(
+        self, platform: Annotated[dagger.Platform | None, Doc("Platform")] = None
+    ) -> dagger.File:
+        """Returns the container tarball for the specified platform"""
+        container: dagger.Container = self.platform_container(platform=platform)
+        return container.as_tarball()
+
+    @function
+    async def platform_variants(self) -> list[dagger.Container]:
+        """Returns the image platform variants"""
+        platform_variants: list[dagger.Container] = []
+        for platform in await self.platforms():
+            if platform != await self.container().platform():
+                platform_variants.append(self.platform_container(platform=platform))
+        return self.platform_variants_
+
+    @function
+    def platform_sbom(
+        self, platform: Annotated[dagger.Platform | None, Doc("Platform")] = None
+    ) -> dagger.File:
+        """Return the SBOM for the specified platform (index if not specified)"""
+        if platform is not None:
+            if platform == dagger.Platform("linux/amd64"):
+                return self.sbom.file("sbom-x86_64.spdx.json")
+            return self.sbom.file("sbom-aarch64.spdx.json")
+        return self.sbom.file("sbom-index.spdx.json")
 
     @function
     def with_registry_auth(
@@ -84,35 +154,21 @@ class Image:
         return self
 
     @function
-    def sbom(self) -> dagger.Directory:
-        """Returns the SBOM directory"""
-        return self.apko().directory("$APKO_SBOM_DIR", expand=True)
-
-    @function
-    async def platforms(self) -> list[dagger.Platform]:
-        """Retrieves image platforms"""
-        platforms: list[dagger.Platform] = []
-        crane = self.crane()
-
-        manifest = json.loads(await crane.manifest(image=self.address))
-
-        for entry in manifest.get("manifests", []):
-            platform = entry["platform"]
-            architecture = platform["architecture"]
-            os = platform["os"]
-            platforms.append(dagger.Platform(f"{os}/{architecture}"))
-        return platforms
-
-    @function
-    async def ref(self) -> str:
+    async def ref(
+        self, platform: Annotated[dagger.Platform | None, Doc("Platform")] = None
+    ) -> str:
         """Retrieves the fully qualified image ref"""
-        ref = await self.crane().digest(image=self.address, full_ref=True)
+        ref = await self.crane().digest(
+            image=self.address_, platform=platform, full_ref=True
+        )
         return ref.strip()
 
     @function
-    async def digest(self) -> str:
+    async def digest(
+        self, platform: Annotated[dagger.Platform | None, Doc("Platform")] = None
+    ) -> str:
         """Retrieves the image digest"""
-        digest = await self.crane().digest(image=self.address)
+        digest = await self.crane().digest(image=self.address_, platform=platform)
         return digest.strip()
 
     @function
@@ -124,7 +180,7 @@ class Image:
     @function
     async def tag(self, tag: Annotated[str, Doc("Tag")]) -> str:
         """Tag image"""
-        result = await self.crane().tag(image=self.address, tag=tag)
+        result = await self.crane().tag(image=self.address_, tag=tag)
         return result
 
     @function
@@ -136,7 +192,9 @@ class Image:
     @function
     async def copy(self, target: Annotated[str, Doc("Target")]) -> str:
         """Copy image to another registry"""
-        result = await self.crane().copy(source=self.address, target=target)
+        result = await self.cosign().copy(
+            source=self.address_, destination=target, force=True
+        )
         return result
 
     @function
@@ -162,7 +220,7 @@ class Image:
         """Scan image using Grype"""
         grype = self.grype()
         return grype.scan_image(
-            source=self.address,
+            source=self.address_,
             severity_cutoff=severity_cutoff,
             fail=fail,
             output_format=output_format,

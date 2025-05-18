@@ -12,6 +12,7 @@ class Build:
 
     apko_: dagger.Container
     container_: dagger.Container
+    sbom_: dagger.Directory
     platform_variants_: list[dagger.Container] | None
 
     @classmethod
@@ -19,13 +20,17 @@ class Build:
         cls,
         apko: Annotated[dagger.Container, Doc("Apko container")],
         container: Annotated[dagger.Container, Doc("Image container")],
+        sbom: Annotated[dagger.Directory, Doc("Image SBOMs directory")],
         platform_variants: Annotated[
             list[dagger.Container | None], Doc("Platform variants")
         ] = None,
     ):
         """Constructor"""
         return cls(
-            apko_=apko, container_=container, platform_variants_=platform_variants
+            apko_=apko,
+            container_=container,
+            sboms_=sbom,
+            platform_variants_=platform_variants,
         )
 
     @function
@@ -34,21 +39,19 @@ class Build:
         return self.apko_
 
     @function
+    def sbom(self) -> dagger.Directory:
+        """Returns the SBOM directory"""
+        return self.sbom_
+
+    @function
     def container(self) -> dagger.Container:
         """Returns the image container"""
         return self.container_
 
-    def platform_variants(self) -> list[dagger.Container]:
-        """Returns the image platform variants"""
-        return self.platform_variants_
-
     @function
-    async def platforms(self) -> list[dagger.Platform]:
-        """Retrieves build platforms"""
-        platforms: list[dagger.Platform] = [await self.container().platform()]
-        for platform_variant in self.platform_variants():
-            platforms.append(await platform_variant.platform())
-        return platforms
+    def as_tarball(self) -> dagger.File:
+        """Returns the image tarball"""
+        return self.container().as_tarball(platform_variants=self.platform_variants())
 
     @function
     def as_directory(self) -> dagger.Directory:
@@ -60,14 +63,49 @@ class Build:
         )
 
     @function
-    def as_tarball(self) -> dagger.File:
-        """Returns the image tarball"""
-        return self.container().as_tarball(platform_variants=self.platform_variants())
+    def platform_sbom(
+        self, platform: Annotated[dagger.Platform | None, Doc("Platform")] = None
+    ) -> dagger.File:
+        """Return the SBOM for the specified platform (index if not specified)"""
+        if platform is not None:
+            if platform == dagger.Platform("linux/amd64"):
+                return self.sbom.file("sbom-x86_64.spdx.json")
+            return self.sbom.file("sbom-aarch64.spdx.json")
+        return self.sbom.file("sbom-index.spdx.json")
 
     @function
-    def sbom(self) -> dagger.Directory:
-        """Returns the SBOM directory"""
-        return self.apko().directory("$APKO_SBOM_DIR", expand=True)
+    async def platform_container(
+        self, platform: Annotated[dagger.Platform | None, Doc("Platform")] = None
+    ) -> dagger.Container:
+        """Returns the image container for the specified platform (current platform if not specified)"""
+        if platform:
+            if platform == await self.container_.platform():
+                return self.container_
+            for platform_variant in self.platform_variants_:
+                if await platform_variant.platform() == platform:
+                    return platform_variant
+        return self.container_
+
+    @function
+    async def platform_tarball(
+        self, platform: Annotated[dagger.Platform | None, Doc("Platform")] = None
+    ) -> dagger.File:
+        """Returns the container tarball for the specified platform"""
+        container: dagger.Container = await self.platform_container(platform=platform)
+        return container.as_tarball()
+
+    @function
+    def platform_variants(self) -> list[dagger.Container]:
+        """Returns the image platform variants"""
+        return self.platform_variants_
+
+    @function
+    async def platforms(self) -> list[dagger.Platform]:
+        """Retrieves build platforms"""
+        platforms: list[dagger.Platform] = [await self.container().platform()]
+        for platform_variant in self.platform_variants():
+            platforms.append(await platform_variant.platform())
+        return platforms
 
     @function
     def with_registry_auth(
@@ -150,4 +188,10 @@ class Build:
             await self.container().publish(
                 address=tag, platform_variants=self.platform_variants()
             )
-        return Image(address=tags[0], apko_=self.apko(), container_=self.container())
+        return Image(
+            address_=tags[0],
+            apko_=self.apko(),
+            container_=self.container(),
+            platform_variants_=self.platform_variants_,
+            sbom_=self.sbom_,
+        )
