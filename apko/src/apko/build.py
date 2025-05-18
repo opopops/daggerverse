@@ -192,6 +192,5 @@ class Build:
             address_=tags[0],
             apko_=self.apko(),
             container_=self.container(),
-            platform_variants_=self.platform_variants_,
             sbom_=self.sbom_,
         )

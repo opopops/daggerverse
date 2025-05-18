@@ -12,7 +12,6 @@ class Image:
     address_: str
     apko_: dagger.Container
     container_: dagger.Container | None
-    platform_variants_: list[dagger.Container] | None
     sbom_: dagger.Directory | None
 
     @classmethod
@@ -21,19 +20,15 @@ class Image:
         address: Annotated[str, Doc("Image address")],
         apko: Annotated[dagger.Container, Doc("Apko container")],
         container: Annotated[dagger.Container | None, Doc("Image container")] = None,
-        platform_variants: Annotated[
-            list[dagger.Container | None], Doc("Platform variants")
-        ] = None,
         sbom: Annotated[dagger.Directory | None, Doc("Image SBOMs directory")] = None,
     ):
         """Constructor"""
         if container is None:
-            container = dag.container().from_(address)
+            container = dag.container()
         return cls(
             address_=address,
             apko_=apko,
-            container_=container,
-            platform_variants_=platform_variants,
+            container_=container.from_(address),
             sbom_=sbom,
         )
 
@@ -113,7 +108,7 @@ class Image:
         for platform in await self.platforms():
             if platform != await self.container().platform():
                 platform_variants.append(self.platform_container(platform=platform))
-        return self.platform_variants_
+        return platform_variants
 
     @function
     def platform_sbom(
