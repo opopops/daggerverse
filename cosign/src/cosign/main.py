@@ -100,6 +100,36 @@ class Cosign:
         return self
 
     @function
+    def with_env_variable(
+        self,
+        name: Annotated[str, Doc("Name of the environment variable")],
+        value: Annotated[str, Doc("Value of the environment variable")],
+        expand: Annotated[
+            bool | None,
+            Doc(
+                "Replace “${VAR}” or “$VAR” in the value according to the current environment variables defined in the container"
+            ),
+        ] = False,
+    ) -> Self:
+        """Set a new environment variable in the Apko container"""
+        self.container_ = self.container().with_env_variable(
+            name=name, value=value, expand=expand
+        )
+        return self
+
+    @function
+    def with_secret_variable(
+        self,
+        name: Annotated[str, Doc("Name of the secret variable")],
+        secret: Annotated[dagger.Secret, Doc("Identifier of the secret value")],
+    ) -> Self:
+        """Set a new environment variable, using a secret value"""
+        self.container_ = self.container().with_secret_variable(
+            name=name, secret=secret
+        )
+        return self
+
+    @function
     async def generate_key_pair(
         self,
         password: Annotated[dagger.Secret | None, Doc("Key password")] = dag.set_secret(
