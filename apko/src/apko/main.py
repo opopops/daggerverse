@@ -1,9 +1,12 @@
 from typing import Annotated, Self
+from datetime import datetime
+
 import dagger
 from dagger import DefaultPath, Doc, Name, dag, function, object_type
 
 from .build import Build
 from .image import Image
+from .sbom import Sbom
 
 
 @object_type
@@ -200,8 +203,8 @@ class Apko:
         return Build(
             apko_=apko,
             container_=self.container,
-            sbom_=apko.directory("$APKO_SBOM_DIR", expand=True),
             platform_variants_=platform_variants,
+            sbom_=Sbom(directory_=apko.directory("$APKO_SBOM_DIR", expand=True)),
         )
 
     @function
@@ -228,6 +231,9 @@ class Apko:
         repository_append: Annotated[
             dagger.Directory | None, Doc("Path to extra repositories to include")
         ] = None,
+        force: Annotated[
+            bool | None, Doc("Force image publishing (invalidate cache)")
+        ] = False,
     ) -> Image:
         """Publish an image using Apko"""
         apko = (
@@ -243,6 +249,10 @@ class Apko:
             )
             .with_workdir("$APKO_WORK_DIR", expand=True)
         )
+
+        if force:
+            # Cache buster
+            apko = apko.with_env_variable("CACHEBUSTER", str(datetime.now()))
 
         cmd = ["publish", "$APKO_CONFIG_FILE"]
 
@@ -285,6 +295,6 @@ class Apko:
         return Image(
             address_=tags[0],
             apko_=apko,
-            container_=self.container,
-            sbom_=apko.directory("$APKO_SBOM_DIR", expand=True),
+            container_=self.container.from_(tags[0]),
+            sbom_=Sbom(directory_=apko.directory("$APKO_SBOM_DIR", expand=True)),
         )

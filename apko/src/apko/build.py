@@ -1,9 +1,11 @@
 from typing import Annotated, Self
+from datetime import datetime
 
 import dagger
 from dagger import Doc, Name, dag, function, object_type
 
 from .image import Image
+from .sbom import Sbom
 
 
 @object_type
@@ -12,8 +14,8 @@ class Build:
 
     apko_: dagger.Container
     container_: dagger.Container
-    sbom_: dagger.Directory
     platform_variants_: list[dagger.Container] | None
+    sbom_: Sbom
 
     @classmethod
     async def create(
@@ -39,71 +41,57 @@ class Build:
         return self.apko_
 
     @function
-    def sbom(self) -> dagger.Directory:
-        """Returns the SBOM directory"""
-        return self.sbom_
-
-    @function
-    def container(self) -> dagger.Container:
-        """Returns the image container"""
-        return self.container_
-
-    @function
     def as_tarball(self) -> dagger.File:
-        """Returns the image tarball"""
-        return self.container().as_tarball(platform_variants=self.platform_variants())
+        """Returns the build as tarball"""
+        return self.container_.as_tarball(platform_variants=self.platform_variants_)
 
     @function
     def as_directory(self) -> dagger.Directory:
-        """Returns the build directory including image tarball and sbom dir"""
+        """Returns the build as directory including tarball and sbom dir"""
         return (
             dag.directory()
             .with_file("image.tar", self.as_tarball())
-            .with_directory("sbom", self.sbom())
+            .with_directory("sbom", self.sbom_.directory())
         )
 
     @function
-    def platform_sbom(
-        self, platform: Annotated[dagger.Platform | None, Doc("Platform")] = None
-    ) -> dagger.File:
-        """Return the SBOM for the specified platform (index if not specified)"""
-        if platform is not None:
-            if platform == dagger.Platform("linux/amd64"):
-                return self.sbom.file("sbom-x86_64.spdx.json")
-            return self.sbom.file("sbom-aarch64.spdx.json")
-        return self.sbom.file("sbom-index.spdx.json")
+    def sbom(self) -> dagger.Directory:
+        """Returns the SBOM directory"""
+        return self.sbom_.directory()
 
     @function
-    async def platform_container(
+    def sbom_file(
+        self, platform: Annotated[dagger.Platform | None, Doc("Platform")] = None
+    ) -> dagger.File:
+        """Returns the SBOM for the specified platform (index if not specified)"""
+        return self.sbom_.file(platform=platform)
+
+    @function
+    async def container(
         self, platform: Annotated[dagger.Platform | None, Doc("Platform")] = None
     ) -> dagger.Container:
-        """Returns the image container for the specified platform (current platform if not specified)"""
+        """Returns the container for the specified platform (current platform if not specified)"""
         if platform:
             if platform == await self.container_.platform():
                 return self.container_
-            for platform_variant in self.platform_variants_:
+            for platform_variant in self.platform_variants_ or []:
                 if await platform_variant.platform() == platform:
                     return platform_variant
         return self.container_
 
     @function
-    async def platform_tarball(
+    async def tarball(
         self, platform: Annotated[dagger.Platform | None, Doc("Platform")] = None
     ) -> dagger.File:
         """Returns the container tarball for the specified platform"""
-        container: dagger.Container = await self.platform_container(platform=platform)
+        container: dagger.Container = await self.container(platform=platform)
         return container.as_tarball()
-
-    @function
-    def platform_variants(self) -> list[dagger.Container]:
-        """Returns the image platform variants"""
-        return self.platform_variants_
 
     @function
     async def platforms(self) -> list[dagger.Platform]:
         """Retrieves build platforms"""
         platforms: list[dagger.Platform] = [await self.container().platform()]
-        for platform_variant in self.platform_variants():
+        for platform_variant in self.platform_variants_:
             platforms.append(await platform_variant.platform())
         return platforms
 
@@ -150,7 +138,7 @@ class Build:
     ) -> dagger.File:
         """Scan build result using Grype"""
         return dag.grype().scan_file(
-            source=self.container().as_tarball(),
+            source=self.container_.as_tarball(),
             source_type="oci-archive",
             severity_cutoff=severity_cutoff,
             fail=fail,
@@ -180,17 +168,24 @@ class Build:
 
     @function
     async def publish(
-        self, tags: Annotated[list[str], Doc("Image tags"), Name("tag")]
+        self,
+        tags: Annotated[list[str], Doc("Tags"), Name("tag")],
+        force: Annotated[
+            bool | None, Doc("Force image publishing (invalidate cache)")
+        ] = False,
     ) -> Image:
         """Publish image"""
-        # additionnal tags
+        container: dagger.Container = self.container_
+        if force:
+            # Cache buster
+            container = container.with_env_variable("CACHEBUSTER", str(datetime.now()))
         for tag in tags:
-            await self.container().publish(
-                address=tag, platform_variants=self.platform_variants()
+            await container.publish(
+                address=tag, platform_variants=self.platform_variants_
             )
         return Image(
             address_=tags[0],
             apko_=self.apko(),
-            container_=self.container(),
+            container_=self.container_,
             sbom_=self.sbom_,
         )

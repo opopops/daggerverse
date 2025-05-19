@@ -14,14 +14,14 @@ dagger call --progress=plain \
   with-scan \
     --severity-cutoff critical \
   publish \
-    --tag ttl.sh/opopops/daggerverse/apko:1h \
+    --tag ttl.sh/opopops/daggerverse/apko:24h \
   ref
 
 dagger call --progress=plain \
   publish \
     --source ./tests  \
     --config ./tests/config/apko.yaml  \
-    --tag ttl.sh/opopops/daggerverse/apko:1h \
+    --tag ttl.sh/opopops/daggerverse/apko:24h \
     --arch amd64,arm64 \
   with-scan \
     --severity-cutoff critical \

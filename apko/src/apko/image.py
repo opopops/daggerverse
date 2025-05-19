@@ -4,6 +4,8 @@ from urllib.parse import urlparse
 import dagger
 from dagger import Doc, dag, function, object_type
 
+from .sbom import Sbom
+
 
 @object_type
 class Image:
@@ -12,7 +14,7 @@ class Image:
     address_: str
     apko_: dagger.Container
     container_: dagger.Container | None
-    sbom_: dagger.Directory | None
+    sbom_: Sbom | None
 
     @classmethod
     async def create(
@@ -48,6 +50,14 @@ class Image:
         """Returns grype"""
         return dag.grype(docker_config=self.docker_config())
 
+    async def platform_variants(self) -> list[dagger.Container]:
+        """Returns the image platform variants"""
+        platform_variants: list[dagger.Container] = []
+        for platform in await self.platforms():
+            if platform != await self.container().platform():
+                platform_variants.append(self.container(platform=platform))
+        return platform_variants
+
     @function
     def apko(self) -> dagger.Container:
         """Returns the apko container"""
@@ -59,19 +69,16 @@ class Image:
         return self.address_
 
     @function
-    def container(self) -> dagger.Container:
-        """Returns the image container"""
-        return self.container_
-
-    @function
     def sbom(self) -> dagger.Directory:
         """Returns the SBOM directory"""
-        return self.sbom_
+        return self.sbom_.directory()
 
     @function
-    def as_tarball(self) -> dagger.File:
-        """Returns the image tarball"""
-        return self.container().as_tarball()
+    def sbom_file(
+        self, platform: Annotated[dagger.Platform | None, Doc("Platform")] = None
+    ) -> dagger.File:
+        """Return the SBOM for the specified platform (index if not specified)"""
+        return self.sbom_.file(platform=platform)
 
     @function
     async def platforms(self) -> list[dagger.Platform]:
@@ -87,39 +94,23 @@ class Image:
         return platforms
 
     @function
-    def platform_container(
+    async def container(
         self, platform: Annotated[dagger.Platform | None, Doc("Platform")] = None
     ) -> dagger.Container:
         """Returns the image container for the specified platform (current platform if not specified)"""
-        return dag.container(platform=platform).from_(address=self.address_)
+        if platform:
+            if platform == await self.container_.platform():
+                return self.container_
+            return dag.container(platform=platform).from_(address=self.address_)
+        return self.container_
 
     @function
-    def platform_tarball(
+    def tarball(
         self, platform: Annotated[dagger.Platform | None, Doc("Platform")] = None
     ) -> dagger.File:
         """Returns the container tarball for the specified platform"""
-        container: dagger.Container = self.platform_container(platform=platform)
+        container: dagger.Container = self.container(platform=platform)
         return container.as_tarball()
-
-    @function
-    async def platform_variants(self) -> list[dagger.Container]:
-        """Returns the image platform variants"""
-        platform_variants: list[dagger.Container] = []
-        for platform in await self.platforms():
-            if platform != await self.container().platform():
-                platform_variants.append(self.platform_container(platform=platform))
-        return platform_variants
-
-    @function
-    def platform_sbom(
-        self, platform: Annotated[dagger.Platform | None, Doc("Platform")] = None
-    ) -> dagger.File:
-        """Return the SBOM for the specified platform (index if not specified)"""
-        if platform is not None:
-            if platform == dagger.Platform("linux/amd64"):
-                return self.sbom.file("sbom-x86_64.spdx.json")
-            return self.sbom.file("sbom-aarch64.spdx.json")
-        return self.sbom.file("sbom-index.spdx.json")
 
     @function
     def with_registry_auth(
@@ -129,7 +120,7 @@ class Image:
         address: Annotated[str | None, Doc("Registry host")] = "docker.io",
     ) -> Self:
         """Authenticates with registry"""
-        self.container_ = self.container().with_registry_auth(
+        self.container_ = self.container_.with_registry_auth(
             address=address, username=username, secret=secret
         )
         cmd = [
@@ -247,27 +238,25 @@ class Image:
         self,
         private_key: Annotated[dagger.Secret | None, Doc("Cosign private key")] = None,
         password: Annotated[dagger.Secret | None, Doc("Cosign password")] = None,
+        identity_token: Annotated[
+            dagger.Secret | None, Doc("Cosign identity token")
+        ] = None,
         oidc_provider: Annotated[
             str | None, Doc("Specify the provider to get the OIDC token from")
         ] = "",
         oidc_issuer: Annotated[
             str | None, Doc("OIDC provider to be used to issue ID toke")
         ] = "",
-        recursive: Annotated[
-            bool | None,
-            Doc(
-                "If a multi-arch image is specified, additionally sign each discrete image"
-            ),
-        ] = True,
     ) -> str:
         """Sign image with Cosign"""
         return await self.cosign().sign(
             image=await self.ref(),
             private_key=private_key,
             password=password,
+            identity_token=identity_token,
             oidc_provider=oidc_provider,
             oidc_issuer=oidc_issuer,
-            recursive=recursive,
+            recursive=True,
         )
 
     @function
@@ -275,25 +264,86 @@ class Image:
         self,
         private_key: Annotated[dagger.Secret | None, Doc("Cosign private key")] = None,
         password: Annotated[dagger.Secret | None, Doc("Cosign password")] = None,
+        identity_token: Annotated[
+            dagger.Secret | None, Doc("Cosign identity token")
+        ] = None,
         oidc_provider: Annotated[
             str | None, Doc("Specify the provider to get the OIDC token from")
         ] = "",
         oidc_issuer: Annotated[
             str | None, Doc("OIDC provider to be used to issue ID toke")
         ] = "",
-        recursive: Annotated[
-            bool | None,
-            Doc(
-                "If a multi-arch image is specified, additionally sign each discrete image"
-            ),
-        ] = True,
     ) -> Self:
         """Sign image with Cosign (for chaining)"""
         await self.sign(
             private_key=private_key,
             password=password,
+            identity_token=identity_token,
             oidc_provider=oidc_provider,
             oidc_issuer=oidc_issuer,
-            recursive=recursive,
+        )
+        return self
+
+    @function
+    async def attest(
+        self,
+        private_key: Annotated[dagger.Secret | None, Doc("Cosign private key")] = None,
+        password: Annotated[dagger.Secret | None, Doc("Cosign password")] = None,
+        identity_token: Annotated[
+            dagger.Secret | None, Doc("Cosign identity token")
+        ] = None,
+        oidc_provider: Annotated[
+            str | None, Doc("Specify the provider to get the OIDC token from")
+        ] = "",
+        oidc_issuer: Annotated[
+            str | None, Doc("OIDC provider to be used to issue ID toke")
+        ] = "",
+    ) -> str:
+        """Attest image SBOMs with Cosign"""
+        for platform in await self.platforms():
+            await self.cosign().attest(
+                image=await self.ref(),
+                predicate=self.sbom_file(platform=platform),
+                type_="spdxjson",
+                private_key=private_key,
+                password=password,
+                identity_token=identity_token,
+                oidc_provider=oidc_provider,
+                oidc_issuer=oidc_issuer,
+            )
+        # Attest index SBOM
+        return await self.cosign().attest(
+            image=await self.ref(),
+            predicate=self.sbom_file(),
+            type_="spdxjson",
+            private_key=private_key,
+            password=password,
+            identity_token=identity_token,
+            oidc_provider=oidc_provider,
+            oidc_issuer=oidc_issuer,
+        )
+
+    @function
+    async def with_attest(
+        self,
+        private_key: Annotated[dagger.Secret | None, Doc("Cosign private key")] = None,
+        password: Annotated[dagger.Secret | None, Doc("Cosign password")] = None,
+        identity_token: Annotated[
+            dagger.Secret | None, Doc("Cosign identity token")
+        ] = None,
+        oidc_provider: Annotated[
+            str | None, Doc("Specify the provider to get the OIDC token from")
+        ] = "",
+        oidc_issuer: Annotated[
+            str | None, Doc("OIDC provider to be used to issue ID toke")
+        ] = "",
+    ) -> Self:
+        """Attest image SBOMs with Cosign (for chaining)"""
+        await self.attest(
+            private_key=private_key,
+            password=password,
+            identity_token=identity_token,
+            oidc_provider=oidc_provider,
+            oidc_issuer=oidc_issuer,
         )
         return self
