@@ -8,17 +8,7 @@ from dagger import Doc, function, object_type
 class Sbom:
     """SBOM files"""
 
-    directory_: Annotated[dagger.Directory, Doc("SBOM directory")]
-
-    @classmethod
-    async def create(
-        cls,
-        directory: Annotated[dagger.Directory, Doc("SBOM directory")],
-    ):
-        """Constructor"""
-        return cls(
-            directory_=directory,
-        )
+    directory_: dagger.Directory
 
     @function
     def directory(self) -> dagger.Directory:

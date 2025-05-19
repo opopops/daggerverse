@@ -1,42 +1,27 @@
 import json
 from typing import Annotated, Self
 from urllib.parse import urlparse
-import dagger
-from dagger import Doc, dag, function, object_type
 
+import dagger
+from dagger import Doc, dag, field, function, object_type
+
+from .cli import Cli
 from .sbom import Sbom
 
 
 @object_type
 class Image:
-    """Apko Image"""
+    """Image"""
 
-    address_: str
-    apko_: dagger.Container
-    container_: dagger.Container | None
-    sbom_: Sbom | None
+    address: str = field()
+    container_: dagger.Container
+    sbom_: Sbom
 
-    @classmethod
-    async def create(
-        cls,
-        address: Annotated[str, Doc("Image address")],
-        apko: Annotated[dagger.Container, Doc("Apko container")],
-        container: Annotated[dagger.Container | None, Doc("Image container")] = None,
-        sbom: Annotated[dagger.Directory | None, Doc("Image SBOMs directory")] = None,
-    ):
-        """Constructor"""
-        if container is None:
-            container = dag.container()
-        return cls(
-            address_=address,
-            apko_=apko,
-            container_=container.from_(address),
-            sbom_=sbom,
-        )
+    apko: Cli
 
     def docker_config(self) -> dagger.File:
         """Returns the docker config file"""
-        return self.apko().file("${DOCKER_CONFIG}/config.json", expand=True)
+        return self.apko.container().file("${DOCKER_CONFIG}/config.json", expand=True)
 
     def crane(self) -> dagger.Crane:
         """Returns crane"""
@@ -59,16 +44,6 @@ class Image:
         return platform_variants
 
     @function
-    def apko(self) -> dagger.Container:
-        """Returns the apko container"""
-        return self.apko_
-
-    @function
-    def address(self) -> str:
-        """Returns the image address"""
-        return self.address_
-
-    @function
     def sbom(self) -> dagger.Directory:
         """Returns the SBOM directory"""
         return self.sbom_.directory()
@@ -85,7 +60,7 @@ class Image:
         """Retrieves image platforms"""
         platforms: list[dagger.Platform] = []
         crane = self.crane()
-        manifest = json.loads(await crane.manifest(image=self.address_))
+        manifest = json.loads(await crane.manifest(image=self.address))
         for entry in manifest.get("manifests", []):
             platform = entry["platform"]
             architecture = platform["architecture"]
@@ -97,11 +72,11 @@ class Image:
     async def container(
         self, platform: Annotated[dagger.Platform | None, Doc("Platform")] = None
     ) -> dagger.Container:
-        """Returns the image container for the specified platform (current platform if not specified)"""
+        """Returns the container for the specified platform (current platform if not specified)"""
         if platform:
             if platform == await self.container_.platform():
                 return self.container_
-            return dag.container(platform=platform).from_(address=self.address_)
+            return dag.container(platform=platform).from_(address=self.address)
         return self.container_
 
     @function
@@ -120,22 +95,11 @@ class Image:
         address: Annotated[str | None, Doc("Registry host")] = "docker.io",
     ) -> Self:
         """Authenticates with registry"""
-        self.container_ = self.container_.with_registry_auth(
+        self.container_ = self.container().with_registry_auth(
             address=address, username=username, secret=secret
         )
-        cmd = [
-            "sh",
-            "-c",
-            (
-                f"apko login {address}"
-                f" --username {username}"
-                " --password ${REGISTRY_PASSWORD}"
-            ),
-        ]
-        self.apko_ = (
-            self.apko()
-            .with_secret_variable("REGISTRY_PASSWORD", secret)
-            .with_exec(cmd, use_entrypoint=False)
+        self.apko = self.apko.with_registry_auth(
+            address=address, username=username, secret=secret
         )
         return self
 
@@ -145,7 +109,7 @@ class Image:
     ) -> str:
         """Retrieves the fully qualified image ref"""
         ref = await self.crane().digest(
-            image=self.address_, platform=platform, full_ref=True
+            image=self.address, platform=platform, full_ref=True
         )
         return ref.strip()
 
@@ -154,7 +118,7 @@ class Image:
         self, platform: Annotated[dagger.Platform | None, Doc("Platform")] = None
     ) -> str:
         """Retrieves the image digest"""
-        digest = await self.crane().digest(image=self.address_, platform=platform)
+        digest = await self.crane().digest(image=self.address, platform=platform)
         return digest.strip()
 
     @function
@@ -166,7 +130,7 @@ class Image:
     @function
     async def tag(self, tag: Annotated[str, Doc("Tag")]) -> str:
         """Tag image"""
-        result = await self.crane().tag(image=self.address_, tag=tag)
+        result = await self.crane().tag(image=self.address, tag=tag)
         return result
 
     @function
@@ -179,7 +143,7 @@ class Image:
     async def copy(self, target: Annotated[str, Doc("Target")]) -> str:
         """Copy image to another registry"""
         result = await self.cosign().copy(
-            source=self.address_, destination=target, force=True
+            source=self.address, destination=target, force=True
         )
         return result
 
@@ -206,7 +170,7 @@ class Image:
         """Scan image using Grype"""
         grype = self.grype()
         return grype.scan_image(
-            source=self.address_,
+            source=self.address,
             severity_cutoff=severity_cutoff,
             fail=fail,
             output_format=output_format,

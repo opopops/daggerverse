@@ -2,7 +2,10 @@
 name = "apko"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = ["dagger-io"]
+dependencies = [
+    "dagger-io",
+    "pyyaml>=6.0.2",
+]
 
 [build-system]
 requires = ["hatchling==1.25.0"]

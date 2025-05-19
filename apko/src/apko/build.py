@@ -4,6 +4,7 @@ from datetime import datetime
 import dagger
 from dagger import Doc, Name, dag, function, object_type
 
+from .cli import Cli
 from .image import Image
 from .sbom import Sbom
 
@@ -12,38 +13,16 @@ from .sbom import Sbom
 class Build:
     """Apko Build"""
 
-    apko_: dagger.Container
     container_: dagger.Container
-    platform_variants_: list[dagger.Container] | None
+    platform_variants: list[dagger.Container]
     sbom_: Sbom
 
-    @classmethod
-    async def create(
-        cls,
-        apko: Annotated[dagger.Container, Doc("Apko container")],
-        container: Annotated[dagger.Container, Doc("Image container")],
-        sbom: Annotated[dagger.Directory, Doc("Image SBOMs directory")],
-        platform_variants: Annotated[
-            list[dagger.Container | None], Doc("Platform variants")
-        ] = None,
-    ):
-        """Constructor"""
-        return cls(
-            apko_=apko,
-            container_=container,
-            sboms_=sbom,
-            platform_variants_=platform_variants,
-        )
-
-    @function
-    def apko(self) -> dagger.Container:
-        """Returns the apko container"""
-        return self.apko_
+    apko: Cli
 
     @function
     def as_tarball(self) -> dagger.File:
         """Returns the build as tarball"""
-        return self.container_.as_tarball(platform_variants=self.platform_variants_)
+        return self.container.as_tarball(platform_variants=self.platform_variants)
 
     @function
     def as_directory(self) -> dagger.Directory:
@@ -72,12 +51,12 @@ class Build:
     ) -> dagger.Container:
         """Returns the container for the specified platform (current platform if not specified)"""
         if platform:
-            if platform == await self.container_.platform():
-                return self.container_
-            for platform_variant in self.platform_variants_ or []:
+            if platform == await self.container.platform():
+                return self.container
+            for platform_variant in self.platform_variants:
                 if await platform_variant.platform() == platform:
                     return platform_variant
-        return self.container_
+        return self.container
 
     @function
     async def tarball(
@@ -91,7 +70,7 @@ class Build:
     async def platforms(self) -> list[dagger.Platform]:
         """Retrieves build platforms"""
         platforms: list[dagger.Platform] = [await self.container().platform()]
-        for platform_variant in self.platform_variants_:
+        for platform_variant in self.platform_variants:
             platforms.append(await platform_variant.platform())
         return platforms
 
@@ -106,19 +85,8 @@ class Build:
         self.container_ = self.container().with_registry_auth(
             address=address, username=username, secret=secret
         )
-        cmd = [
-            "sh",
-            "-c",
-            (
-                f"apko login {address}"
-                f" --username {username}"
-                " --password ${REGISTRY_PASSWORD}"
-            ),
-        ]
-        self.apko_ = (
-            self.apko()
-            .with_secret_variable("REGISTRY_PASSWORD", secret)
-            .with_exec(cmd, use_entrypoint=False)
+        self.apko = self.apko.with_registry_auth(
+            address=address, username=username, secret=secret
         )
         return self
 
@@ -179,13 +147,14 @@ class Build:
         if force:
             # Cache buster
             container = container.with_env_variable("CACHEBUSTER", str(datetime.now()))
+        ref: str = ""
         for tag in tags:
-            await container.publish(
-                address=tag, platform_variants=self.platform_variants_
+            ref = await container.publish(
+                address=tag, platform_variants=self.platform_variants
             )
         return Image(
-            address_=tags[0],
-            apko_=self.apko(),
-            container_=self.container_,
+            address=ref,
+            container_=container,
             sbom_=self.sbom_,
+            apko=self.apko,
         )

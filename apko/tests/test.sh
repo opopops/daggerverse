@@ -18,8 +18,18 @@ dagger call --progress=plain \
   ref
 
 dagger call --progress=plain \
+  build \
+    --config ./tests/config/apko.yaml  \
+    --arch amd64,arm64 \
+  with-scan \
+    --severity-cutoff critical \
   publish \
-    --source ./tests  \
+    --tag ttl.sh/opopops/daggerverse/apko:24h \
+  ref
+
+dagger call --progress=plain \
+  --source ./tests  \
+  publish \
     --config ./tests/config/apko.yaml  \
     --tag ttl.sh/opopops/daggerverse/apko:24h \
     --arch amd64,arm64 \
