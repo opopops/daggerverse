@@ -4,6 +4,7 @@ from typing import Annotated, Self
 import dagger
 from dagger import DefaultPath, Doc, Name, dag, function, object_type
 
+from .cli import Cli as DockerCli
 from .build import Build
 
 
@@ -11,12 +12,53 @@ from .build import Build
 class Docker:
     """Docker"""
 
-    container: dagger.Container | None = None
+    workdir: dagger.Directory
+    image: str
+    version: str
+    user: str
+
+    container_: dagger.Container
+    docker_: DockerCli | None
 
     @classmethod
-    async def create(cls):
+    async def create(
+        cls,
+        workdir: Annotated[
+            dagger.Directory | None,
+            DefaultPath("."),
+            Doc("Working dir"),
+            Name("source"),
+        ],
+        image: Annotated[str | None, Doc("wolfi-base image")] = (
+            "cgr.dev/chainguard/wolfi-base:latest"
+        ),
+        version: Annotated[str | None, Doc("Docker CLI version")] = "latest",
+        user: Annotated[str | None, Doc("Image user")] = "nonroot",
+    ):
         """Constructor"""
-        return cls(container=dag.container())
+        return cls(
+            workdir=workdir,
+            image=image,
+            version=version,
+            user=user,
+            container_=dag.container(),
+            docker_=None,
+        )
+
+    @function
+    def docker(self) -> DockerCli:
+        """Returns the Apko CLI"""
+        if self.docker_:
+            return self.docker_
+        self.docker_ = DockerCli(
+            image=self.image, user=self.user, version=self.version, workdir=self.workdir
+        )
+        return self.docker_
+
+    @function
+    def container(self) -> dagger.Container:
+        """Returns the docker container"""
+        return self.docker().container()
 
     @function
     async def with_registry_auth(
@@ -26,15 +68,54 @@ class Docker:
         address: Annotated[str | None, Doc("Registry host")] = "docker.io",
     ) -> Self:
         """Authenticate with registry"""
-        self.container = self.container.with_registry_auth(
+        self.container_ = self.container_.with_registry_auth(
+            address=address, username=username, secret=secret
+        )
+        self.docker_ = self.docker().with_registry_auth(
             address=address, username=username, secret=secret
         )
         return self
 
     @function
+    def with_env_variable(
+        self,
+        name: Annotated[str, Doc("Name of the environment variable")],
+        value: Annotated[str, Doc("Value of the environment variable")],
+        expand: Annotated[
+            bool | None,
+            Doc(
+                "Replace “${VAR}” or “$VAR” in the value according to the current environment variables defined in the container"
+            ),
+        ] = False,
+    ) -> Self:
+        """Set a new environment variable in the Apko container"""
+        self.docker_ = self.docker().with_env_variable(
+            name=name, value=value, expand=expand
+        )
+        return self
+
+    @function
+    def with_secret_variable(
+        self,
+        name: Annotated[str, Doc("Name of the secret variable")],
+        secret: Annotated[dagger.Secret, Doc("Identifier of the secret value")],
+    ) -> Self:
+        """Set a new environment variable, using a secret value"""
+        self.docker_ = self.docker().with_secret_variable(name=name, secret=secret)
+        return self
+
+    @function
+    def with_unix_socket(
+        self,
+        source: Annotated[dagger.Socket, Doc("Identifier of the socket to forward")],
+    ) -> Self:
+        """Retrieves the Apko container plus a socket forwarded to the given Unix socket path"""
+        self.docker_ = self.docker().with_unix_socket(source=source)
+        return self
+
+    @function
     async def build(
         self,
-        context: Annotated[dagger.Directory | None, DefaultPath("."), Doc("Context")],
         dockerfile: Annotated[
             str | None, Doc("Location of the Dockerfile")
         ] = "Dockerfile",
@@ -56,13 +137,12 @@ class Docker:
         ] = (),
     ) -> Build:
         """Build multi-arch OCI image"""
-        current_platform: dagger.Platform = await self.container.platform()
+        current_platform: dagger.Platform = await self.container_.platform()
         platform_variants: list[dagger.Container] = []
         dagger_build_args: list[dagger.BuildArg] = []
 
         async def build_(
             platform: dagger.Platform,
-            context: dagger.Directory,
             dockerfile: str,
             target: str,
             build_args: list[dagger.BuildArg],
@@ -70,17 +150,17 @@ class Docker:
         ):
             container: dagger.Container = dag.container(platform=platform)
             if platform == current_platform:
-                container = self.container
+                container = self.container_
 
             container = await container.build(
-                context=context,
+                context=self.workdir,
                 dockerfile=dockerfile,
                 target=target,
                 build_args=build_args,
                 secrets=secrets,
             )
             if platform == current_platform:
-                self.container = container
+                self.container_ = container
             else:
                 platform_variants.append(container)
 
@@ -96,7 +176,6 @@ class Docker:
                     tg.create_task(
                         build_(
                             platform=platform,
-                            context=context,
                             dockerfile=dockerfile,
                             target=target,
                             build_args=dagger_build_args,
@@ -104,11 +183,15 @@ class Docker:
                         )
                     )
         else:
-            self.container = self.container.build(
-                context=context,
+            self.container_ = self.container_.build(
+                context=self.workdir,
                 dockerfile=dockerfile,
                 target=target,
                 build_args=dagger_build_args,
                 secrets=secrets,
             )
-        return Build(platform_variants_=platform_variants, container_=self.container)
+        return Build(
+            container_=self.container_,
+            platform_variants=platform_variants,
+            docker=self.docker(),
+        )

@@ -2,6 +2,7 @@ from typing import Annotated, Self
 import dagger
 from dagger import Doc, Name, dag, function, object_type
 
+from .cli import Cli as DockerCli
 from .image import Image
 
 
@@ -10,31 +11,43 @@ class Build:
     """Docker Build"""
 
     container_: dagger.Container
-    platform_variants_: list[dagger.Container] | None
+    platform_variants: list[dagger.Container]
 
-    @classmethod
-    async def create(
-        cls,
-        container: Annotated[dagger.Container, Doc("Container")],
-        platform_variants: Annotated[
-            list[dagger.Container | None], Doc("Platform variants")
-        ] = None,
-    ):
-        """Constructor"""
-        return cls(container_=container, platform_variants_=platform_variants)
+    docker: DockerCli
+
+    @function
+    def as_tarball(self) -> dagger.File:
+        """Returns the build as tarball"""
+        return self.container.as_tarball(platform_variants=self.platform_variants)
+
+    @function
+    async def container(
+        self, platform: Annotated[dagger.Platform | None, Doc("Platform")] = None
+    ) -> dagger.Container:
+        """Returns the container for the specified platform (current platform if not specified)"""
+        if platform:
+            if platform == await self.container.platform():
+                return self.container_
+            for platform_variant in self.platform_variants:
+                if await platform_variant.platform() == platform:
+                    return platform_variant
+        return self.container_
+
+    @function
+    async def tarball(
+        self, platform: Annotated[dagger.Platform | None, Doc("Platform")] = None
+    ) -> dagger.File:
+        """Returns the container tarball for the specified platform"""
+        container: dagger.Container = await self.container(platform=platform)
+        return container.as_tarball()
 
     @function
     async def platforms(self) -> list[dagger.Platform]:
         """Retrieves build platforms"""
         platforms: list[dagger.Platform] = [await self.container_.platform()]
-        for platform_variant in self.platform_variants_:
+        for platform_variant in self.platform_variants:
             platforms.append(await platform_variant.platform())
         return platforms
-
-    @function()
-    async def container(self) -> dagger.Container:
-        """Returns the current host platform variant container"""
-        return self.container_
 
     @function
     async def with_registry_auth(
@@ -48,19 +61,6 @@ class Build:
             address=address, username=username, secret=secret
         )
         return self
-
-    @function
-    def as_tarball(
-        self, compress: Annotated[bool | None, Doc("Enable compression")] = False
-    ) -> dagger.File:
-        """Export container as tarball"""
-        forced_compression = dagger.ImageLayerCompression("Uncompressed")
-        if compress:
-            forced_compression = dagger.ImageLayerCompression("Gzip")
-        return self.container_.as_tarball(
-            platform_variants=self.platform_variants_,
-            forced_compression=forced_compression,
-        )
 
     @function
     def scan(
@@ -117,9 +117,10 @@ class Build:
         self, tags: Annotated[list[str], Doc("Image tags"), Name("tag")]
     ) -> Image:
         """Publish image"""
+        address: str = ""
         # additionnal tags
         for tag in tags:
-            await self.container_.publish(
-                address=tag, platform_variants=self.platform_variants_
+            address = await self.container_.publish(
+                address=tag, platform_variants=self.platform_variants
             )
-        return Image(address=tags[0], container_=self.container_)
+        return Image(address=address, container_=self.container_, docker=self.docker)
