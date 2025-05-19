@@ -116,6 +116,15 @@ class Apko:
         return self
 
     @function
+    def with_unix_socket(
+        self,
+        source: Annotated[dagger.Socket, Doc("Identifier of the socket to forward")],
+    ) -> Self:
+        """Retrieves the Apko container plus a socket forwarded to the given Unix socket path"""
+        self.apko_ = self.apko().with_unix_socket(source=source)
+        return self
+
+    @function
     async def build(
         self,
         config: Annotated[dagger.File, Doc("Config file")],
@@ -269,12 +278,13 @@ class Apko:
 
         # Publish the container
         apko = apko.with_exec(cmd, use_entrypoint=True, expand=True)
-        # Retrieves the published container
-        container: dagger.Container = self.container_.from_(tags[0])
+        address: str = (await apko.stdout()).strip()
 
         return Image(
-            address=await container.image_ref(),
-            container_=container,
+            address=address,
+            container_=self.container().from_(address)
+            if not local
+            else self.container(),
             sbom_=Sbom(directory_=apko.directory("$APKO_SBOM_DIR", expand=True)),
             apko=self.apko(),
         )

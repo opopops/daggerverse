@@ -52,11 +52,11 @@ class Build:
         """Returns the container for the specified platform (current platform if not specified)"""
         if platform:
             if platform == await self.container.platform():
-                return self.container
+                return self.container_
             for platform_variant in self.platform_variants:
                 if await platform_variant.platform() == platform:
                     return platform_variant
-        return self.container
+        return self.container_
 
     @function
     async def tarball(

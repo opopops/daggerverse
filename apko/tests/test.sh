@@ -37,16 +37,29 @@ dagger call --progress=plain \
     --severity-cutoff critical \
   ref
 
-dagger call --progress=plain \
-  with-registry-auth \
-    --username ${DOCKERHUB_USERNAME} \
-    --secret env:DOCKERHUB_TOKEN \
-    --address docker.io \
-  build \
-    --config ./tests/config/apko.yaml  \
-    --arch amd64,arm64 \
-  with-scan \
-    --severity-cutoff critical \
-  publish \
-    --tag docker.io/${DOCKERHUB_USERNAME}/private:apko \
-  ref
+if [[ -e "/var/run/docker.sock" ]]; then
+  dagger call --progress=plain \
+    with-unix-socket \
+      --source /var/run/docker.sock \
+    publish \
+      --config ./tests/config/apko.yaml  \
+      --tag daggerverse/apko:latest \
+      --local \
+    address
+fi
+
+if [[ -n "$DOCKERHUB_USERNAME" ]] && [[ -n "$DOCKERHUB_TOKEN" ]]; then
+  dagger call --progress=plain \
+    with-registry-auth \
+      --username ${DOCKERHUB_USERNAME} \
+      --secret env:DOCKERHUB_TOKEN \
+      --address docker.io \
+    build \
+      --config ./tests/config/apko.yaml  \
+      --arch amd64,arm64 \
+    with-scan \
+      --severity-cutoff critical \
+    publish \
+      --tag docker.io/${DOCKERHUB_USERNAME}/private:apko \
+    ref
+fi

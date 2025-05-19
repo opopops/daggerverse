@@ -39,13 +39,12 @@ class Cli:
             .with_env_variable(
                 "APKO_IMAGE_TARBALL", "${APKO_OUTPUT_DIR}/image.tar", expand=True
             )
-            .with_env_variable(
-                "APKO_KEYRING_FILE", "/tmp/keyring/melange.rsa.pub", expand=True
-            )
-            .with_env_variable("APKO_REPOSITORY_DIR", "/tmp/repository", expand=True)
-            .with_env_variable("DOCKER_CONFIG", "/tmp/docker", expand=True)
+            .with_env_variable("APKO_KEYRING_FILE", "/tmp/keyring/melange.rsa.pub")
+            .with_env_variable("APKO_REPOSITORY_DIR", "/tmp/repository")
+            .with_env_variable("DOCKER_CONFIG", "/tmp/docker")
+            .with_env_variable("DOCKER_HOST", "unix:///tmp/docker.sock")
             .with_user("0")
-            .with_exec(["apk", "add", "--no-cache", pkg])
+            .with_exec(["apk", "add", "--no-cache", "docker-cli", pkg])
             .with_entrypoint(["/usr/bin/apko"])
             .with_user(self.user)
             .with_mounted_cache(
@@ -125,5 +124,16 @@ class Cli:
         """Set a new environment variable, using a secret value"""
         self.container_ = self.container().with_secret_variable(
             name=name, secret=secret
+        )
+        return self
+
+    @function
+    def with_unix_socket(
+        self,
+        source: Annotated[dagger.Socket, Doc("Identifier of the socket to forward")],
+    ) -> Self:
+        """Retrieves this Apko CLI plus a socket forwarded to the given Unix socket path"""
+        self.container_ = self.container().with_unix_socket(
+            path="/tmp/docker.sock", source=source, owner=self.user
         )
         return self
