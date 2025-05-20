@@ -6,6 +6,7 @@ import dagger
 from dagger import Doc, dag, field, function, object_type
 
 from .cli import Cli as DockerCli
+from .sbom import Sbom
 
 
 @object_type
@@ -14,6 +15,7 @@ class Image:
 
     address: str = field()
     container_: dagger.Container
+    sbom_: Sbom
 
     docker: DockerCli
 
@@ -32,6 +34,18 @@ class Image:
     def grype(self) -> dagger.Grype:
         """Returns grype"""
         return dag.grype(docker_config=self.docker_config())
+
+    @function
+    def sbom(self) -> dagger.Directory:
+        """Returns the SBOM directory"""
+        return self.sbom_.directory()
+
+    @function
+    def sbom_file(
+        self, platform: Annotated[dagger.Platform | None, Doc("Platform")] = None
+    ) -> dagger.File:
+        """Return the SBOM for the specified platform (index if not specified)"""
+        return self.sbom_.file(platform=platform)
 
     @function
     async def container(
@@ -239,5 +253,69 @@ class Image:
             oidc_provider=oidc_provider,
             oidc_issuer=oidc_issuer,
             recursive=recursive,
+        )
+        return self
+
+    @function
+    async def attest(
+        self,
+        private_key: Annotated[dagger.Secret | None, Doc("Cosign private key")] = None,
+        password: Annotated[dagger.Secret | None, Doc("Cosign password")] = None,
+        identity_token: Annotated[
+            dagger.Secret | None, Doc("Cosign identity token")
+        ] = None,
+        oidc_provider: Annotated[
+            str | None, Doc("Specify the provider to get the OIDC token from")
+        ] = "",
+        oidc_issuer: Annotated[
+            str | None, Doc("OIDC provider to be used to issue ID toke")
+        ] = "",
+    ) -> str:
+        """Attest image SBOMs with Cosign"""
+        for platform in await self.platforms():
+            await self.cosign().attest(
+                image=await self.ref(),
+                predicate=self.sbom_file(platform=platform),
+                type_="spdxjson",
+                private_key=private_key,
+                password=password,
+                identity_token=identity_token,
+                oidc_provider=oidc_provider,
+                oidc_issuer=oidc_issuer,
+            )
+        # Attest index SBOM
+        return await self.cosign().attest(
+            image=await self.ref(),
+            predicate=self.sbom_file(),
+            type_="spdxjson",
+            private_key=private_key,
+            password=password,
+            identity_token=identity_token,
+            oidc_provider=oidc_provider,
+            oidc_issuer=oidc_issuer,
+        )
+
+    @function
+    async def with_attest(
+        self,
+        private_key: Annotated[dagger.Secret | None, Doc("Cosign private key")] = None,
+        password: Annotated[dagger.Secret | None, Doc("Cosign password")] = None,
+        identity_token: Annotated[
+            dagger.Secret | None, Doc("Cosign identity token")
+        ] = None,
+        oidc_provider: Annotated[
+            str | None, Doc("Specify the provider to get the OIDC token from")
+        ] = "",
+        oidc_issuer: Annotated[
+            str | None, Doc("OIDC provider to be used to issue ID toke")
+        ] = "",
+    ) -> Self:
+        """Attest image SBOMs with Cosign (for chaining)"""
+        await self.attest(
+            private_key=private_key,
+            password=password,
+            identity_token=identity_token,
+            oidc_provider=oidc_provider,
+            oidc_issuer=oidc_issuer,
         )
         return self

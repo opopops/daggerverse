@@ -4,6 +4,7 @@ from dagger import Doc, Name, dag, function, object_type
 
 from .cli import Cli as DockerCli
 from .image import Image
+from .sbom import Sbom
 
 
 @object_type
@@ -12,6 +13,7 @@ class Build:
 
     container_: dagger.Container
     platform_variants: list[dagger.Container]
+    sbom_: Sbom
 
     docker: DockerCli
 
@@ -19,6 +21,27 @@ class Build:
     def as_tarball(self) -> dagger.File:
         """Returns the build as tarball"""
         return self.container.as_tarball(platform_variants=self.platform_variants)
+
+    @function
+    def as_directory(self) -> dagger.Directory:
+        """Returns the build as directory including tarball and sbom dir"""
+        return (
+            dag.directory()
+            .with_file("image.tar", self.as_tarball())
+            .with_directory("sbom", self.sbom_.directory())
+        )
+
+    @function
+    def sbom(self) -> dagger.Directory:
+        """Returns the SBOM directory"""
+        return self.sbom_.directory()
+
+    @function
+    def sbom_file(
+        self, platform: Annotated[dagger.Platform | None, Doc("Platform")] = None
+    ) -> dagger.File:
+        """Returns the SBOM for the specified platform (index if not specified)"""
+        return self.sbom_.file(platform=platform)
 
     @function
     async def container(
@@ -123,4 +146,9 @@ class Build:
             address = await self.container_.publish(
                 address=tag, platform_variants=self.platform_variants
             )
-        return Image(address=address, container_=self.container_, docker=self.docker)
+        return Image(
+            address=address,
+            container_=self.container_,
+            sbom_=self.sbom_,
+            docker=self.docker,
+        )

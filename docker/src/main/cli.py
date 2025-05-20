@@ -31,12 +31,25 @@ class Cli:
             .with_env_variable("DOCKER_WORK_DIR", "/tmp/work")
             .with_env_variable("DOCKER_CONFIG", "/tmp/docker")
             .with_env_variable("DOCKER_HOST", "unix:///tmp/docker.sock")
+            .with_env_variable("DOCKER_SBOM_DIR", "/tmp/sbom")
             .with_user("0")
-            .with_exec(["apk", "add", "--no-cache", pkg])
+            .with_exec(
+                [
+                    "apk",
+                    "add",
+                    "--no-cache",
+                    "syft",
+                    "docker-cli-buildx",
+                    "docker-compose",
+                    pkg,
+                ]
+            )
             .with_entrypoint(["/usr/bin/docker"])
             .with_user(self.user)
             .with_exec(
-                ["mkdir", "-p", "$DOCKER_CONFIG"], use_entrypoint=False, expand=True
+                ["mkdir", "-p", "$DOCKER_CONFIG", "$DOCKER_SBOM_DIR"],
+                use_entrypoint=False,
+                expand=True,
             )
             .with_new_file(
                 "${DOCKER_CONFIG}/config.json",

@@ -6,6 +6,7 @@ from dagger import DefaultPath, Doc, Name, dag, function, object_type
 
 from .cli import Cli as DockerCli
 from .build import Build
+from .sbom import Sbom
 
 
 @object_type
@@ -135,11 +136,13 @@ class Docker:
             Doc("Set target platform for build"),
             Name("platform"),
         ] = (),
+        sbom: Annotated[bool | None, Doc("generate SBOM")] = True,
     ) -> Build:
         """Build multi-arch OCI image"""
         current_platform: dagger.Platform = await self.container_.platform()
         platform_variants: list[dagger.Container] = []
         dagger_build_args: list[dagger.BuildArg] = []
+        sboms: list[dagger.File] = []
 
         async def build_(
             platform: dagger.Platform,
@@ -190,8 +193,51 @@ class Docker:
                 build_args=dagger_build_args,
                 secrets=secrets,
             )
+
+        # Generates SBOMs for each platform
+        if sbom:
+            platform_variants_tarball: dagger.File = self.container_.as_tarball(
+                platform_variants=platform_variants
+            )
+            for platform in platforms or [current_platform]:
+                tarball: dagger.File = (
+                    dag.container(platform=platform)
+                    .import_(source=platform_variants_tarball)
+                    .as_tarball()
+                )
+                sbom_path: str = (
+                    f"$DOCKER_SBOM_DIR/sbom-{platform.replace('/', '-')}.spdx.json"
+                )
+                sboms.append(
+                    self.container()
+                    .with_mounted_file(
+                        "/tmp/image.tar", source=tarball, owner=self.docker().user
+                    )
+                    .with_exec(
+                        [
+                            "syft",
+                            "scan",
+                            "oci-archive:/tmp/image.tar",
+                            "--output",
+                            f"spdx-json={sbom_path}",
+                        ],
+                        expand=True,
+                    )
+                    .file(path=sbom_path, expand=True)
+                )
+
         return Build(
             container_=self.container_,
             platform_variants=platform_variants,
             docker=self.docker(),
+            sbom_=Sbom(
+                directory_=self.container()
+                .with_files(
+                    "$DOCKER_SBOM_DIR",
+                    sources=sboms,
+                    owner=self.docker().user,
+                    expand=True,
+                )
+                .directory("$DOCKER_SBOM_DIR", expand=True)
+            ),
         )

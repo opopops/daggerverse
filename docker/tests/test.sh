@@ -13,6 +13,13 @@ dagger call --progress=plain \
   build \
     --dockerfile files/Dockerfile \
     --platform linux/amd64,linux/arm64 \
+  sbom-file contents
+
+dagger call --progress=plain \
+  --source ./tests \
+  build \
+    --dockerfile files/Dockerfile \
+    --platform linux/amd64,linux/arm64 \
   with-scan \
     --severity-cutoff critical \
   publish \
