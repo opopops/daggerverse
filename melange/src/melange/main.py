@@ -72,7 +72,6 @@ class Melange:
             container.from_(address=self.image)
             .with_user("0")
             .with_exec(["apk", "add", "--no-cache", "openssl", pkg])
-            .with_entrypoint(["/usr/bin/melange"])
             .with_env_variable("MELANGE_CACHE_DIR", "/cache/melange")
             .with_env_variable("MELANGE_APK_CACHE_DIR", "/cache/apk")
             .with_env_variable("MELANGE_WORK_DIR", "/melange")
@@ -90,8 +89,9 @@ class Melange:
                 owner=self.user,
                 expand=True,
             )
-            .with_workdir("$MELANGE_WORK_DIR", expand=True)
             .with_user(self.user)
+            .with_workdir("$MELANGE_WORK_DIR", expand=True)
+            .with_entrypoint(["/usr/bin/melange"])
         )
 
         return self.container_
@@ -204,9 +204,9 @@ class Melange:
         if signing_key:
             self.signing_key_ = signing_key
             self.public_key_ = self._public_key(signing_key)
-        container = container.with_mounted_secret(
-            "/tmp/melange.rsa", self.signing_key_, owner=self.user
-        )
+            container = container.with_mounted_secret(
+                "/tmp/melange.rsa", self.signing_key_, owner=self.user
+            )
 
         cmd = [
             "build",
