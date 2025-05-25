@@ -1,5 +1,5 @@
 from typing import Annotated, Self
-import os
+
 import dagger
 from dagger import Doc, Name, dag, function, object_type
 
@@ -22,22 +22,44 @@ class Melange:
             "cgr.dev/chainguard/wolfi-base:latest"
         ),
         version: Annotated[str | None, Doc("Melange version")] = "latest",
-        user: Annotated[str | None, Doc("Image user")] = "0",
-        signing_key: Annotated[dagger.Secret | None, Doc("Signing key")] = None,
+        user: Annotated[str | None, Doc("Image user")] = "65532",
     ):
         """Constructor"""
         return cls(
             image=image,
             version=version,
             user=user,
-            signing_key_=signing_key,
+            signing_key_=None,
             public_key_=None,
             container_=None,
         )
 
+    def _public_key(self, signing_key: dagger.Secret) -> dagger.File:
+        """Return the public key from the specified secret key"""
+        return (
+            self.container()
+            .with_mounted_secret(
+                "/tmp/melange.rsa",
+                source=signing_key,
+                owner=self.user,
+            )
+            .with_exec(
+                [
+                    "openssl",
+                    "rsa",
+                    "-in",
+                    "/tmp/melange.rsa",
+                    "-pubout",
+                    "-out",
+                    "melange.rsa.pub",
+                ],
+            )
+            .file("melange.rsa.pub")
+        )
+
     @function
     def container(self) -> dagger.Container:
-        """Returns container"""
+        """Returns melange container"""
         if self.container_:
             return self.container_
 
@@ -49,21 +71,11 @@ class Melange:
         self.container_ = (
             container.from_(address=self.image)
             .with_user("0")
-            .with_exec(["apk", "add", "--no-cache", "melange"])
+            .with_exec(["apk", "add", "--no-cache", "openssl", pkg])
             .with_entrypoint(["/usr/bin/melange"])
-            .with_user(self.user)
-            .with_env_variable("MELANGE_CACHE_DIR", "/tmp/cache")
-            .with_env_variable("MELANGE_APK_CACHE_DIR", "/tmp/apk-cache")
-            .with_env_variable("MELANGE_WORK_DIR", "/tmp/work")
-            .with_env_variable("MELANGE_KEYRING_DIR", "/tmp/keyring")
-            .with_env_variable("MELANGE_SIGNING_KEY", "/tmp/keyring/melange.rsa")
-            .with_env_variable("MELANGE_OUTPUT_DIR", "/tmp/output")
-            .with_env_variable("MELANGE_SRC_DIR", "/tmp/src")
-            .with_exec(
-                ["mkdir", "-p", "$MELANGE_KEYRING_DIR"],
-                use_entrypoint=False,
-                expand=True,
-            )
+            .with_env_variable("MELANGE_CACHE_DIR", "/cache/melange")
+            .with_env_variable("MELANGE_APK_CACHE_DIR", "/cache/apk")
+            .with_env_variable("MELANGE_WORK_DIR", "/melange")
             .with_mounted_cache(
                 "$MELANGE_CACHE_DIR",
                 dag.cache_volume("MELANGE_CACHE"),
@@ -79,33 +91,25 @@ class Melange:
                 expand=True,
             )
             .with_workdir("$MELANGE_WORK_DIR", expand=True)
+            .with_user(self.user)
         )
 
         return self.container_
 
     @function
-    async def keygen(
+    def keygen(
         self,
         key_size: Annotated[
             int | None, Doc("the size of the prime to calculate ")
         ] = 4096,
     ) -> dagger.Directory:
-        """Generate a key for package signing"""
-        cmd = ["keygen", "--key-size", str(key_size), "$MELANGE_SIGNING_KEY"]
-
-        self.container_ = self.container().with_exec(
-            cmd, use_entrypoint=True, expand=True
+        """Generate a key pair for package signing"""
+        cmd = ["keygen", "--key-size", str(key_size), "melange.rsa"]
+        return (
+            self.container()
+            .with_exec(cmd, use_entrypoint=True, expand=True)
+            .directory(".")
         )
-        signing_key_file: dagger.File = self.container().file(
-            "$MELANGE_SIGNING_KEY", expand=True
-        )
-        self.signing_key_ = dag.set_secret(
-            name="signing_key", plaintext=await signing_key_file.contents()
-        )
-        self.public_key_ = self.container().file(
-            "$MELANGE_SIGNING_KEY.pub", expand=True
-        )
-        return self.container().directory("$MELANGE_KEYRING_DIR", expand=True)
 
     @function
     async def with_keygen(
@@ -114,57 +118,64 @@ class Melange:
             int | None, Doc("the size of the prime to calculate ")
         ] = 4096,
     ) -> Self:
-        """Generate a key for package signing for chaining"""
-        await self.keygen(key_size=key_size)
+        """Generate a key pair for package signing for chaining (for testing purpose)"""
+        keys_dir: dagger.Directory = self.keygen(key_size=key_size)
+        self.signing_key_ = dag.set_secret(
+            "melange.rsa", await keys_dir.file("melange.rsa").contents()
+        )
+        self.public_key_ = keys_dir.file("melange.rsa.pub")
+        self.container_ = self.container().with_mounted_secret(
+            "/tmp/melange.rsa", self.signing_key_, owner=self.user
+        )
         return self
 
     @function
-    async def signing_key(self) -> dagger.File:
-        """Return the generated signing key"""
-        return dag.file(
-            name="signing_key", contents=await self.signing_key_.plaintext()
+    def signing_key(self) -> dagger.Secret:
+        """Return the signing key"""
+        return self.signing_key_
+
+    @function
+    def with_signing_key(
+        self,
+        signing_key: Annotated[dagger.Secret, Doc("Key to use for signing")],
+    ) -> Self:
+        """Include the specified signing key (for chaining)"""
+        self.signing_key_ = signing_key
+        self.public_key_ = self._public_key(signing_key)
+        self.container_ = self.container().with_mounted_secret(
+            "/tmp/melange.rsa", self.signing_key_, owner=self.user
         )
+        return self
 
     @function
     def public_key(self) -> dagger.File:
-        """Return the generated public key"""
+        """Return the public key"""
+        if self.public_key_:
+            return self.public_key_
+        self.public_key_ = self._public_key(self.signing_key_)
         return self.public_key_
 
     @function
-    async def bump(
+    def bump(
         self,
         config: Annotated[dagger.File, Doc("Config file")],
         version: Annotated[str, Doc("Version to bump to")],
     ) -> dagger.File:
         """Update a Melange YAML file to reflect a new package version"""
-        config_name = await config.name()
-
-        melange = self.container().with_mounted_file(
-            path=os.path.join("$MELANGE_WORK_DIR", config_name),
-            source=config,
-            owner=self.user,
-            expand=True,
-        )
-
-        cmd = ["bump", config_name, version]
-
-        self.container_ = melange.with_exec(cmd, use_entrypoint=True, expand=True)
-        return self.container_.file(
-            os.path.join("$MELANGE_WORK_DIR", config_name), expand=True
+        cmd = ["bump", "melange.yaml", version]
+        return (
+            self.container()
+            .with_file(
+                path="melange.yaml",
+                source=config,
+                owner=self.user,
+            )
+            .with_exec(cmd, use_entrypoint=True)
+            .file("melange.yaml")
         )
 
     @function
-    async def with_bump(
-        self,
-        config: Annotated[dagger.File, Doc("Config file")],
-        version: Annotated[str, Doc("Version to bump to")],
-    ) -> Self:
-        """Update a Melange YAML file to reflect a new package version for chaining"""
-        await self.bump(config=config, version=version)
-        return self
-
-    @function
-    async def build(
+    def build(
         self,
         config: Annotated[dagger.File, Doc("Config file")],
         version: Annotated[str | None, Doc("Version to bump to")] = "",
@@ -176,74 +187,65 @@ class Melange:
         ] = None,
         archs: Annotated[
             list[dagger.Platform] | None, Doc("Target architectures"), Name("arch")
-        ] = None,
+        ] = (),
     ) -> dagger.Directory:
         """Build a package from a YAML configuration file"""
-        config_name = await config.name()
-
-        melange = self.container().with_mounted_file(
-            path=os.path.join("$MELANGE_WORK_DIR", config_name),
+        container: dagger.Container = self.container().with_file(
+            path="melange.yaml",
             source=config,
             owner=self.user,
-            expand=True,
         )
 
         if version:
-            melange = melange.with_exec(
-                ["bump", config_name, version], use_entrypoint=True, expand=True
+            container = container.with_exec(
+                ["bump", "melange.yaml", version], use_entrypoint=True
             )
 
         if signing_key:
             self.signing_key_ = signing_key
-            self.public_key_ = None
-        else:
-            if self.signing_key_ is None:
-                await self.keygen()
-
-        melange = melange.with_mounted_secret(
-            path="$MELANGE_SIGNING_KEY",
-            source=self.signing_key_,
-            owner=self.user,
-            expand=True,
+            self.public_key_ = self._public_key(signing_key)
+        container = container.with_mounted_secret(
+            "/tmp/melange.rsa", self.signing_key_, owner=self.user
         )
 
         cmd = [
             "build",
-            config_name,
+            "melange.yaml",
+            "--signing-key",
+            "/tmp/melange.rsa",
             "--apk-cache-dir",
             "$MELANGE_APK_CACHE_DIR",
             "--cache-dir",
             "$MELANGE_CACHE_DIR",
-            "--signing-key",
-            "$MELANGE_SIGNING_KEY",
             "--out-dir",
-            "$MELANGE_OUTPUT_DIR",
+            "packages",
         ]
 
         if source_dir:
-            melange = melange.with_mounted_directory(
-                "$MELANGE_SRC_DIR", source=source_dir, owner=self.user, expand=True
+            container = container.with_mounted_directory(
+                "/tmp/source",
+                source=source_dir,
+                owner=self.user,
             )
-            cmd.extend(["--source-dir", "$MELANGE_SRC_DIR"])
+            cmd.extend(["--source-dir", "/tmp/source"])
 
-        for arch in archs or [await dag.default_platform()]:
+        for arch in archs:
             cmd.extend(["--arch", arch.split("/")[1]])
 
-        self.container_ = melange.with_exec(
-            cmd, insecure_root_capabilities=True, use_entrypoint=True, expand=True
-        )
-
-        output_dir: dagger.Directory = self.container_.directory(
-            "$MELANGE_OUTPUT_DIR", expand=True
-        )
-        if self.public_key_:
-            return output_dir.with_file(
-                "melange.rsa.pub", self.public_key_, permissions=0o644
+        return (
+            container.with_user("0")
+            .with_exec(
+                cmd, insecure_root_capabilities=True, use_entrypoint=True, expand=True
             )
-        return output_dir
+            .with_user(self.user)
+            .directory(
+                "packages",
+            )
+            .with_file("melange.rsa.pub", self.public_key_, permissions=0o644)
+        )
 
     @function
-    async def with_build(
+    def with_build(
         self,
         config: Annotated[dagger.File, Doc("Config file")],
         version: Annotated[str | None, Doc("Version to bump to")] = "",
@@ -252,10 +254,13 @@ class Melange:
         ] = None,
         archs: Annotated[
             list[dagger.Platform] | None, Doc("Target architectures"), Name("arch")
-        ] = None,
+        ] = (),
     ) -> Self:
         """Build a package from a YAML configuration file (for chaining)"""
-        await self.build(
+        packages: dagger.Directory = self.build(
             config=config, version=version, signing_key=signing_key, archs=archs
+        )
+        self.container_ = self.container().with_directory(
+            "packages", packages, owner=self.user
         )
         return self

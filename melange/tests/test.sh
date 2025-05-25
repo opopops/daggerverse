@@ -9,10 +9,19 @@ MODULE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "$MODULE_DIR"
 
 dagger call --progress=plain \
+  with-keygen \
   build \
     --config ./tests/config/melange.yaml
 
 dagger call --progress=plain \
+  with-keygen \
+  with-build \
+    --config ./tests/config/melange.yaml \
+  build \
+    --config ./tests/config/melange.yaml
+
+dagger call --progress=plain \
+  with-keygen \
   build \
     --config ./tests/config/melange.yaml  \
     --arch amd64,arm64
