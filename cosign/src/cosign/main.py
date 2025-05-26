@@ -158,6 +158,31 @@ class Cosign:
         return container.directory(".")
 
     @function
+    async def clean(
+        self,
+        image: Annotated[str, Doc("Image digest URI")],
+        type_: Annotated[str | None, Doc("Type of clean")] = "all",
+    ) -> str:
+        """Remove all signatures from an image"""
+        return (
+            await self.container()
+            .with_exec(
+                ["clean", image, "--force", "--type", type_], use_entrypoint=True
+            )
+            .stdout()
+        )
+
+    @function
+    async def with_clean(
+        self,
+        image: Annotated[str, Doc("Image digest URI")],
+        type_: Annotated[str | None, Doc("Type of clean")] = "all",
+    ) -> Self:
+        """Remove all signatures from an image (for chaining)"""
+        await self.clean(image=image, type_=type_)
+        return self
+
+    @function
     async def sign(
         self,
         image: Annotated[str, Doc("Image digest URI")],
