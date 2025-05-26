@@ -61,12 +61,13 @@ class Grype:
                 owner=self.user,
                 expand=True,
             )
-            .with_exec(
-                ["mkdir", "-p", "$DOCKER_CONFIG"], use_entrypoint=False, expand=True
+            .with_user(self.user)
+            .with_workdir("$DOCKER_CONFIG", expand=True)
+            .with_new_file(
+                "config.json", contents="", owner=self.user, permissions=0o600
             )
             .with_workdir("$GRYPE_WORK_DIR", expand=True)
             .with_entrypoint(["/usr/bin/grype"])
-            .with_user(self.user)
         )
 
         if self.docker_config:
