@@ -89,6 +89,11 @@ class Apko:
         return self
 
     @function
+    def docker_config(self) -> dagger.File:
+        """Returns the Docker config file"""
+        return self.apko().docker_config()
+
+    @function
     def with_docker_config(
         self, docker_config: Annotated[dagger.File, Doc("Docker config file")]
     ) -> Self:

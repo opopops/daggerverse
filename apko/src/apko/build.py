@@ -47,7 +47,7 @@ class Build:
     ) -> dagger.Container:
         """Returns the container for the specified platform (current platform if not specified)"""
         if platform:
-            if platform == await self.container.platform():
+            if platform == await self.container_.platform():
                 return self.container_
             for platform_variant in self.platform_variants:
                 if await platform_variant.platform() == platform:
@@ -65,7 +65,7 @@ class Build:
     @function
     async def platforms(self) -> list[dagger.Platform]:
         """Retrieves build platforms"""
-        platforms: list[dagger.Platform] = [await self.container().platform()]
+        platforms: list[dagger.Platform] = [await self.container_.platform()]
         for platform_variant in self.platform_variants:
             platforms.append(await platform_variant.platform())
         return platforms
