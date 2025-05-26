@@ -22,7 +22,7 @@ class Build:
     @function
     def as_tarball(self) -> dagger.File:
         """Returns the build as tarball"""
-        return self.container.as_tarball(platform_variants=self.platform_variants)
+        return self.container_.as_tarball(platform_variants=self.platform_variants)
 
     @function
     def as_directory(self) -> dagger.Directory:

@@ -31,9 +31,11 @@ class Cli:
             .with_user("0")
             .with_exec(["apk", "add", "--no-cache", "docker-cli", pkg])
             .with_env_variable("APKO_CACHE_DIR", "/cache/apko")
+            .with_env_variable("APKO_BUILD_DIR", "/build/apko")
             .with_env_variable("APKO_WORK_DIR", "/apko")
             .with_env_variable("DOCKER_CONFIG", "/tmp/docker")
             .with_env_variable("DOCKER_HOST", "unix:///tmp/docker.sock")
+            .with_exec(["mkdir", "-p", "-m", "777", "$APKO_BUILD_DIR"], expand=True)
             .with_mounted_cache(
                 "$APKO_CACHE_DIR",
                 dag.cache_volume("apko-cache"),
@@ -79,6 +81,20 @@ class Cli:
             self.container()
             .with_secret_variable("REGISTRY_PASSWORD", secret)
             .with_exec(cmd, use_entrypoint=False)
+        )
+        return self
+
+    @function
+    def with_docker_config(
+        self, docker_config: Annotated[dagger.File, Doc("Docker config file")]
+    ) -> Self:
+        """Set Docker config file (for chaining)"""
+        self.container_ = self.container().with_mounted_file(
+            "${DOCKER_CONFIG}/config.json",
+            source=docker_config,
+            owner=self.user,
+            permissions=0o600,
+            expand=True,
         )
         return self
 

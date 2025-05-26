@@ -61,9 +61,16 @@ class Apko:
         return self.apko().container()
 
     @function
-    def config(self, config: Annotated[dagger.File, Doc("Config file")]) -> Config:
+    def config(
+        self,
+        config: Annotated[dagger.File, Doc("Config file")],
+        workdir: Annotated[
+            dagger.Directory | None, Doc("Work directory"), Name("source")
+        ] = None,
+    ) -> Config:
         """Returns the derived Apko config"""
-        return Config(config=config, apko=self.apko())
+
+        return Config(config=config, apko=self.apko(), workdir=workdir or self.workdir)
 
     @function
     def with_registry_auth(
@@ -79,6 +86,14 @@ class Apko:
         self.apko_ = self.apko().with_registry_auth(
             address=address, username=username, secret=secret
         )
+        return self
+
+    @function
+    def with_docker_config(
+        self, docker_config: Annotated[dagger.File, Doc("Docker config file")]
+    ) -> Self:
+        """Set Docker config file (for chaining)"""
+        self.apko_ = self.apko().with_docker_config(docker_config)
         return self
 
     @function
@@ -159,9 +174,9 @@ class Apko:
             "build",
             "/tmp/apko.yaml",
             tag,
-            "image.tar",
+            "${APKO_BUILD_DIR}/image.tar",
             "--sbom-path",
-            ".",
+            "${APKO_BUILD_DIR}",
             "--cache-dir",
             "$APKO_CACHE_DIR",
         ]
@@ -198,7 +213,7 @@ class Apko:
             cmd.extend(["--arch", platform.split("/")[1]])
 
         apko = await apko.with_exec(cmd, use_entrypoint=True, expand=True)
-        tarball = apko.file("image.tar")
+        tarball = apko.file("${APKO_BUILD_DIR}/image.tar", expand=True)
         platform_variants: list[dagger.Container] = []
         for platform in platforms:
             if platform == current_platform:
@@ -211,7 +226,11 @@ class Apko:
         return Build(
             container_=self.container_,
             platform_variants=platform_variants,
-            sbom_=Sbom(directory_=apko.directory(".").filter(include=["sbom-*.json"])),
+            sbom_=Sbom(
+                directory_=apko.directory("$APKO_BUILD_DIR", expand=True).filter(
+                    include=["sbom-*.json"]
+                )
+            ),
             apko=self.apko(),
         )
 
@@ -296,7 +315,7 @@ class Apko:
             cmd.extend(["--repository-append", path])
 
         if sbom:
-            cmd.extend(["--sbom=true", "--sbom-path", "."])
+            cmd.extend(["--sbom=true", "--sbom-path", "$APKO_BUILD_DIR"])
         else:
             cmd.append("--sbom=false")
 
@@ -316,6 +335,10 @@ class Apko:
             container_=self.container().from_(address)
             if not local
             else self.container(),
-            sbom_=Sbom(directory_=apko.directory(".").filter(include=["sbom-*.json"])),
+            sbom_=Sbom(
+                directory_=apko.directory("$APKO_BUILD_DIR", expand=True).filter(
+                    include=["sbom-*.json"]
+                )
+            ),
             apko=self.apko(),
         )
