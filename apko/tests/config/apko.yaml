@@ -31,6 +31,7 @@ archs:
   - arm64
 
 annotations:
+  org.opencontainers.image.title: 'bash'
   org.opencontainers.image.licenses: 'MIT'
   org.opencontainers.image.vendor: 'opopops'
   org.opencontainers.image.authors: 'opopops'
