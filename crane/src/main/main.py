@@ -47,27 +47,24 @@ class Crane:
 
         self.container_ = (
             container.from_(address=self.image)
-            .with_env_variable("DOCKER_CONFIG", "/tmp/docker")
             .with_user("0")
             .with_exec(["apk", "add", "--no-cache", pkg])
-            .with_entrypoint(["/usr/bin/crane"])
+            .with_env_variable("DOCKER_CONFIG", "/tmp/docker")
             .with_user(self.user)
-            .with_exec(
-                ["mkdir", "-p", "$DOCKER_CONFIG"],
-                use_entrypoint=False,
-                expand=True,
-            )
+            .with_workdir("$DOCKER_CONFIG", expand=True)
             .with_new_file(
-                "${DOCKER_CONFIG}/config.json",
+                "config.json",
                 contents="",
                 owner=self.user,
                 permissions=0o600,
                 expand=True,
             )
+            .with_workdir("/crane")
+            .with_entrypoint(["/usr/bin/crane"])
         )
 
         if self.docker_config:
-            self.container_ = self.container_.with_file(
+            self.container_ = self.container_.with_mounted_file(
                 "${DOCKER_CONFIG}/config.json",
                 source=self.docker_config,
                 owner=self.user,
@@ -101,21 +98,23 @@ class Crane:
         return self
 
     @function
-    async def manifest(
+    def manifest(
         self,
         image: Annotated[str, Doc("Image")],
         platform: Annotated[
             dagger.Platform | None, Doc("Specifies the platform")
         ] = None,
-    ) -> str:
-        """Get the manifest of an image"""
+    ) -> dagger.File:
+        """Returns the manifest file of an image"""
         container: dagger.Container = self.container()
         cmd = ["manifest", image]
 
         if platform:
             cmd.extend(["--platform", platform])
 
-        return await container.with_exec(cmd, use_entrypoint=True).stdout()
+        return container.with_exec(
+            cmd, redirect_stdout="/tmp/stdout", use_entrypoint=True
+        ).file("/tmp/stdout")
 
     @function
     async def digest(
@@ -128,8 +127,8 @@ class Crane:
             bool | None, Doc("Print the full image reference by digest")
         ] = False,
         tarball: Annotated[
-            str | None, Doc("Path to tarball containing the image")
-        ] = "",
+            dagger.File | None, Doc("Tarball containing the image")
+        ] = None,
     ) -> str:
         """Tag remote image without downloading it."""
         container: dagger.Container = self.container()
@@ -142,7 +141,7 @@ class Crane:
             cmd.extend(["--full-ref"])
 
         if tarball:
-            path = f"/tmp/{tarball}"
+            path = "/tmp/image.tar"
             container.with_mounted_file(path=path, source=tarball, owner=self.user)
             cmd.extend(["--tarball", path])
 

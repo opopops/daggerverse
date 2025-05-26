@@ -15,4 +15,5 @@ dagger call --progress=plain \
 dagger call --progress=plain \
   manifest \
     --image cgr.dev/chainguard/wolfi-base:latest \
-    --platform linux/amd64
+    --platform linux/amd64 \
+  contents
