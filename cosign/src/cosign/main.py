@@ -63,7 +63,7 @@ class Cosign:
         )
 
         if self.docker_config:
-            self.container_ = self.container_.with_mounted_file(
+            self.container_ = self.container_.with_file(
                 "${DOCKER_CONFIG}/config.json",
                 source=self.docker_config,
                 owner=self.user,
