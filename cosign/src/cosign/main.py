@@ -51,14 +51,15 @@ class Cosign:
             .with_env_variable("COSIGN_WORK_DIR", "/cosign")
             .with_env_variable("DOCKER_CONFIG", "/tmp/docker")
             .with_user(self.user)
-            .with_workdir("$DOCKER_CONFIG", expand=True)
+            .with_exec(["mkdir", "-p", "$DOCKER_CONFIG"], expand=True)
             .with_new_file(
-                "config.json",
+                "${DOCKER_CONFIG}/config.json",
                 contents="",
                 owner=self.user,
                 permissions=0o600,
+                expand=True,
             )
-            .with_workdir("$COSIGN_WORK_DIR")
+            .with_workdir("$COSIGN_WORK_DIR", expand=True)
             .with_entrypoint(["/usr/bin/cosign"])
         )
 
