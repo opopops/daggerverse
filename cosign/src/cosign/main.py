@@ -46,27 +46,24 @@ class Cosign:
 
         self.container_ = (
             container.from_(address=self.image)
-            .with_env_variable("DOCKER_CONFIG", "/tmp/docker")
             .with_user("0")
             .with_exec(["apk", "add", "--no-cache", pkg])
-            .with_entrypoint(["/usr/bin/cosign"])
+            .with_env_variable("COSIGN_WORK_DIR", "/cosign")
+            .with_env_variable("DOCKER_CONFIG", "/tmp/docker")
             .with_user(self.user)
-            .with_exec(
-                ["mkdir", "-p", "$DOCKER_CONFIG"],
-                use_entrypoint=False,
-                expand=True,
-            )
+            .with_workdir("$DOCKER_CONFIG", expand=True)
             .with_new_file(
-                "${DOCKER_CONFIG}/config.json",
+                "config.json",
                 contents="",
                 owner=self.user,
                 permissions=0o600,
-                expand=True,
             )
+            .with_workdir("$COSIGN_WORK_DIR")
+            .with_entrypoint(["/usr/bin/cosign"])
         )
 
         if self.docker_config:
-            self.container_ = self.container_.with_file(
+            self.container_ = self.container_.with_mounted_file(
                 "${DOCKER_CONFIG}/config.json",
                 source=self.docker_config,
                 owner=self.user,
@@ -133,7 +130,7 @@ class Cosign:
     async def generate_key_pair(
         self,
         password: Annotated[dagger.Secret | None, Doc("Key password")] = dag.set_secret(
-            "cosign_password", ""
+            "cosign-password", ""
         ),
     ) -> dagger.Directory:
         """Generate key pair"""
@@ -141,10 +138,9 @@ class Cosign:
         container = (
             self.container()
             .with_secret_variable("COSIGN_PASSWORD", password)
-            .with_workdir("/tmp/cosign")
             .with_exec(["generate-key-pair"], use_entrypoint=True)
         )
-        return container.directory("/tmp/cosign")
+        return container.directory(".")
 
     @function
     async def sign(
