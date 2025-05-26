@@ -95,7 +95,7 @@ class Cli:
         self, docker_config: Annotated[dagger.File, Doc("Docker config file")]
     ) -> Self:
         """Set Docker config file (for chaining)"""
-        self.container_ = self.container().with_mounted_file(
+        self.container_ = self.container().with_file(
             "${DOCKER_CONFIG}/config.json",
             source=docker_config,
             owner=self.user,
