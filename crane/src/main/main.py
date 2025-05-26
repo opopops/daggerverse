@@ -51,9 +51,9 @@ class Crane:
             .with_exec(["apk", "add", "--no-cache", pkg])
             .with_env_variable("DOCKER_CONFIG", "/tmp/docker")
             .with_user(self.user)
-            .with_workdir("$DOCKER_CONFIG", expand=True)
+            .with_exec(["mkdir", "-p", "$DOCKER_CONFIG"], expand=True)
             .with_new_file(
-                "config.json",
+                "${DOCKER_CONFIG}/config.json",
                 contents="",
                 owner=self.user,
                 permissions=0o600,
