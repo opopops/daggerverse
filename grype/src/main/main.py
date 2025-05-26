@@ -105,6 +105,20 @@ class Grype:
         return self
 
     @function
+    def with_docker_config(
+        self, docker_config: Annotated[dagger.File, Doc("Docker config file")]
+    ) -> Self:
+        """Set Docker config file (for chaining)"""
+        self.container_ = self.container().with_mounted_file(
+            "${DOCKER_CONFIG}/config.json",
+            source=docker_config,
+            owner=self.user,
+            permissions=0o600,
+            expand=True,
+        )
+        return self
+
+    @function
     def scan(
         self,
         source: Annotated[str, Doc("Source to scan")],
