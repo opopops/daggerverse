@@ -11,8 +11,8 @@ class Cli:
     image: str = field()
     user: str = field()
     version: str = field()
-    workdir: dagger.Directory
 
+    workdir: dagger.Directory | None = None
     container_: dagger.Container | None = None
 
     @function
@@ -28,25 +28,12 @@ class Cli:
         self.container_ = (
             dag.container()
             .from_(address=self.image)
-            .with_env_variable("APKO_CACHE_DIR", "/tmp/cache")
-            .with_env_variable("APKO_CONFIG_DIR", "/tmp/config")
-            .with_env_variable(
-                "APKO_CONFIG_FILE", "${APKO_CONFIG_DIR}/apko.yaml", expand=True
-            )
-            .with_env_variable("APKO_WORK_DIR", "/tmp/work")
-            .with_env_variable("APKO_OUTPUT_DIR", "/tmp/output")
-            .with_env_variable("APKO_SBOM_DIR", "/tmp/sbom")
-            .with_env_variable(
-                "APKO_IMAGE_TARBALL", "${APKO_OUTPUT_DIR}/image.tar", expand=True
-            )
-            .with_env_variable("APKO_KEYRING_FILE", "/tmp/keyring/melange.rsa.pub")
-            .with_env_variable("APKO_REPOSITORY_DIR", "/tmp/repository")
-            .with_env_variable("DOCKER_CONFIG", "/tmp/docker")
-            .with_env_variable("DOCKER_HOST", "unix:///tmp/docker.sock")
             .with_user("0")
             .with_exec(["apk", "add", "--no-cache", "docker-cli", pkg])
-            .with_entrypoint(["/usr/bin/apko"])
-            .with_user(self.user)
+            .with_env_variable("APKO_CACHE_DIR", "/cache/apko")
+            .with_env_variable("APKO_WORK_DIR", "/apko")
+            .with_env_variable("DOCKER_CONFIG", "/tmp/docker")
+            .with_env_variable("DOCKER_HOST", "unix:///tmp/docker.sock")
             .with_mounted_cache(
                 "$APKO_CACHE_DIR",
                 dag.cache_volume("apko-cache"),
@@ -54,23 +41,21 @@ class Cli:
                 owner=self.user,
                 expand=True,
             )
-            .with_exec(
-                ["mkdir", "-p", "$APKO_OUTPUT_DIR", "$APKO_SBOM_DIR", "$DOCKER_CONFIG"],
-                use_entrypoint=False,
-                expand=True,
-            )
+            .with_user(self.user)
+            .with_workdir("$DOCKER_CONFIG", expand=True)
             .with_new_file(
-                "${DOCKER_CONFIG}/config.json",
+                "config.json",
                 contents="",
                 owner=self.user,
                 permissions=0o600,
-                expand=True,
-            )
-            .with_mounted_directory(
-                path="$APKO_WORK_DIR", source=self.workdir, owner=self.user, expand=True
             )
             .with_workdir("$APKO_WORK_DIR", expand=True)
+            .with_entrypoint(["/usr/bin/apko"])
         )
+        if self.workdir:
+            self.container_ = self.container_.with_mounted_directory(
+                "$APKO_WORK_DIR", source=self.workdir, owner=self.user, expand=True
+            )
         return self.container_
 
     @function

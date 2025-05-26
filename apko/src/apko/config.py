@@ -10,28 +10,32 @@ from .cli import Cli
 class Config:
     """Apko Config"""
 
-    workdir: dagger.Directory
     config: dagger.File
+    workdir: dagger.Directory | None = None
 
     apko: Cli
 
     @function
     def file(self) -> dagger.File:
         """Returns the full Apko config file"""
-        return (
-            self.apko.container()
-            .with_mounted_file(
-                "$APKO_CONFIG_FILE",
-                source=self.config,
-                owner=self.apko.user,
-                expand=True,
+        container: dagger.Container = self.apko.container().with_mounted_file(
+            "/tmp/apko.yaml",
+            source=self.config,
+            owner=self.apko.user,
+        )
+        if self.workdir:
+            container = container.with_mounted_directory(
+                "$APKO_WORK_DIR", source=self.workdir, owner=self.apko.user, expand=True
             )
-            .with_exec(
-                ["apko", "show-config", "$APKO_CONFIG_FILE", "--log-level", "ERROR"],
-                redirect_stdout="/tmp/config.yaml",
-                expand=True,
-            )
-            .file("/tmp/config.yaml")
+        cmd: list[str] = [
+            "apko",
+            "show-config",
+            "/tmp/apko.yaml",
+            "--log-level",
+            "ERROR",
+        ]
+        return container.with_exec(cmd, redirect_stdout="/tmp/stdout").file(
+            "/tmp/stdout"
         )
 
     @function

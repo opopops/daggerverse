@@ -156,7 +156,7 @@ class Image:
     @function
     def scan(
         self,
-        severity_cutoff: (
+        severity: (
             Annotated[
                 str | None,
                 Doc("Specify the minimum vulnerability severity to trigger an error"),
@@ -171,7 +171,7 @@ class Image:
         grype = self.grype()
         return grype.scan_image(
             source=self.address,
-            severity_cutoff=severity_cutoff,
+            severity_cutoff=severity,
             fail=fail,
             output_format=output_format,
         )
@@ -179,7 +179,7 @@ class Image:
     @function
     async def with_scan(
         self,
-        severity_cutoff: (
+        severity: (
             Annotated[
                 str | None,
                 Doc("Specify the minimum vulnerability severity to trigger an error"),
@@ -192,7 +192,7 @@ class Image:
     ) -> Self:
         """Scan image using Grype (for chaining)"""
         report: dagger.File = self.scan(
-            severity_cutoff=severity_cutoff, fail=fail, output_format=output_format
+            severity=severity, fail=fail, output_format=output_format
         )
         await report.contents()
         return self

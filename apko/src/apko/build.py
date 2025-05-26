@@ -27,11 +27,7 @@ class Build:
     @function
     def as_directory(self) -> dagger.Directory:
         """Returns the build as directory including tarball and sbom dir"""
-        return (
-            dag.directory()
-            .with_file("image.tar", self.as_tarball())
-            .with_directory("sbom", self.sbom_.directory())
-        )
+        return self.sbom_.directory().with_file("image.tar", self.as_tarball())
 
     @function
     def sbom(self) -> dagger.Directory:
@@ -93,7 +89,7 @@ class Build:
     @function
     def scan(
         self,
-        severity_cutoff: (
+        severity: (
             Annotated[
                 str | None,
                 Doc("Specify the minimum vulnerability severity to trigger an error"),
@@ -108,7 +104,7 @@ class Build:
         return dag.grype().scan_file(
             source=self.container_.as_tarball(),
             source_type="oci-archive",
-            severity_cutoff=severity_cutoff,
+            severity_cutoff=severity,
             fail=fail,
             output_format=output_format,
         )
@@ -116,7 +112,7 @@ class Build:
     @function
     async def with_scan(
         self,
-        severity_cutoff: (
+        severity: (
             Annotated[
                 str | None,
                 Doc("Specify the minimum vulnerability severity to trigger an error"),
@@ -129,7 +125,7 @@ class Build:
     ) -> Self:
         """Scan build result using Grype (for chaining)"""
         report: dagger.File = self.scan(
-            severity_cutoff=severity_cutoff, fail=fail, output_format=output_format
+            severity=severity, fail=fail, output_format=output_format
         )
         await report.contents()
         return self

@@ -2,7 +2,7 @@ from typing import Annotated, Self
 from datetime import datetime
 
 import dagger
-from dagger import DefaultPath, Doc, Name, dag, function, object_type
+from dagger import Doc, Name, dag, function, object_type
 
 from .cli import Cli as ApkoCli
 from .build import Build
@@ -15,35 +15,32 @@ from .sbom import Sbom
 class Apko:
     """Apko module"""
 
-    workdir: dagger.Directory
     image: str
     version: str
     user: str
 
     container_: dagger.Container
-    apko_: ApkoCli | None
+    workdir: dagger.Directory | None = None
+    apko_: ApkoCli | None = None
 
     @classmethod
     async def create(
         cls,
-        workdir: Annotated[
-            dagger.Directory | None,
-            DefaultPath("."),
-            Doc("Working dir"),
-            Name("source"),
-        ],
         image: Annotated[str | None, Doc("wolfi-base image")] = (
             "cgr.dev/chainguard/wolfi-base:latest"
         ),
         version: Annotated[str | None, Doc("Apko version")] = "latest",
         user: Annotated[str | None, Doc("Image user")] = "nonroot",
+        workdir: Annotated[
+            dagger.Directory | None, Doc("Work directory"), Name("source")
+        ] = None,
     ):
         """Constructor"""
         return cls(
-            workdir=workdir,
             image=image,
             version=version,
             user=user,
+            workdir=workdir,
             container_=dag.container(),
             apko_=None,
         )
@@ -64,12 +61,9 @@ class Apko:
         return self.apko().container()
 
     @function
-    def config(
-        self,
-        config: Annotated[dagger.File, Doc("Config file")],
-    ) -> Config:
+    def config(self, config: Annotated[dagger.File, Doc("Config file")]) -> Config:
         """Returns the derived Apko config"""
-        return Config(workdir=self.workdir, config=config, apko=self.apko())
+        return Config(config=config, apko=self.apko())
 
     @function
     def with_registry_auth(
@@ -129,64 +123,82 @@ class Apko:
         self,
         config: Annotated[dagger.File, Doc("Config file")],
         tag: Annotated[str | None, Doc("Image tag")] = "apko-build",
+        sources: Annotated[
+            list[dagger.Directory] | None,
+            Doc("Additional include paths where to look for input files"),
+            Name("include-paths"),
+        ] = (),
+        keyrings: Annotated[
+            list[dagger.File] | None,
+            Doc("Path to extra keys to include in the keyring"),
+            Name("keyring-append"),
+        ] = (),
+        repositories: Annotated[
+            list[dagger.Directory] | None,
+            Doc("Path to extra repositories to include"),
+            Name("repository-append"),
+        ] = (),
         platforms: Annotated[
             list[dagger.Platform] | None, Doc("Platforms"), Name("arch")
-        ] = None,
-        keyring_append: Annotated[
-            dagger.File | None, Doc("Path to extra keys to include in the keyring")
-        ] = None,
-        repository_append: Annotated[
-            dagger.Directory | None, Doc("Path to extra repositories to include")
-        ] = None,
+        ] = (),
     ) -> Build:
         """Build an image using Apko"""
+        current_platform: dagger.Platform = await self.container_.platform()
+
         apko = (
             self.apko()
             .container()
             .with_mounted_file(
-                path="$APKO_CONFIG_FILE",
+                path="/tmp/apko.yaml",
                 source=config,
                 owner=self.user,
-                expand=True,
             )
         )
 
         cmd = [
             "build",
-            "$APKO_CONFIG_FILE",
+            "/tmp/apko.yaml",
             tag,
-            "$APKO_IMAGE_TARBALL",
+            "image.tar",
+            "--sbom-path",
+            ".",
             "--cache-dir",
             "$APKO_CACHE_DIR",
-            "--sbom-path",
-            "$APKO_SBOM_DIR",
         ]
 
-        if keyring_append:
-            apko = apko.with_mounted_file(
-                "$APKO_KEYRING_FILE",
-                source=keyring_append,
-                owner=self.user,
-                expand=True,
-            )
-            cmd.extend(["--keyring-append", "$APKO_KEYRING_FILE"])
-
-        if repository_append:
+        for index, source in enumerate(sources):
+            path: str = f"/tmp/sources/{index}"
             apko = apko.with_mounted_directory(
-                "$APKO_REPOSITORY_DIR",
-                source=repository_append,
+                path,
+                source=source,
                 owner=self.user,
-                expand=True,
             )
-            cmd.extend(["--repository-append", "$APKO_REPOSITORY_DIR"])
+            cmd.extend(["--include-paths", path])
 
-        platforms = platforms or [await dag.default_platform()]
+        for index, keyring in enumerate(keyrings):
+            path: str = f"/tmp/keyrings/{index}"
+            apko = apko.with_mounted_file(
+                path,
+                source=keyring,
+                owner=self.user,
+            )
+            cmd.extend(["--keyring-append", path])
+
+        for index, repository in enumerate(repositories):
+            path: str = f"/tmp/repositories/{index}"
+            apko = apko.with_mounted_directory(
+                path,
+                source=repository,
+                owner=self.user,
+            )
+            cmd.extend(["--repository-append", path])
+
+        platforms = platforms or [current_platform]
         for platform in platforms:
             cmd.extend(["--arch", platform.split("/")[1]])
 
         apko = await apko.with_exec(cmd, use_entrypoint=True, expand=True)
-        tarball = apko.file("$APKO_IMAGE_TARBALL", expand=True)
-        current_platform: dagger.Platform = await self.container_.platform()
+        tarball = apko.file("image.tar")
         platform_variants: list[dagger.Container] = []
         for platform in platforms:
             if platform == current_platform:
@@ -199,7 +211,7 @@ class Apko:
         return Build(
             container_=self.container_,
             platform_variants=platform_variants,
-            sbom_=Sbom(directory_=apko.directory("$APKO_SBOM_DIR", expand=True)),
+            sbom_=Sbom(directory_=apko.directory(".").filter(include=["sbom-*.json"])),
             apko=self.apko(),
         )
 
@@ -208,32 +220,42 @@ class Apko:
         self,
         config: Annotated[dagger.File, Doc("Config file")],
         tags: Annotated[list[str], Doc("Image tags"), Name("tag")],
-        sbom: Annotated[bool | None, Doc("generate SBOM")] = True,
+        sources: Annotated[
+            list[dagger.Directory] | None,
+            Doc("Additional include paths where to look for input files"),
+            Name("include-paths"),
+        ] = (),
+        keyrings: Annotated[
+            list[dagger.File] | None,
+            Doc("Path to extra keys to include in the keyring"),
+            Name("keyring-append"),
+        ] = (),
+        repositories: Annotated[
+            list[dagger.Directory] | None,
+            Doc("Path to extra repositories to include"),
+            Name("repository-append"),
+        ] = (),
         platforms: Annotated[
             list[dagger.Platform] | None, Doc("Platforms"), Name("arch")
-        ] = None,
+        ] = (),
+        sbom: Annotated[bool | None, Doc("generate SBOM")] = True,
         local: Annotated[
             bool | None, Doc("Publish image just to local Docker daemon")
         ] = False,
-        keyring_append: Annotated[
-            dagger.File | None, Doc("Path to extra keys to include in the keyring")
-        ] = None,
-        repository_append: Annotated[
-            dagger.Directory | None, Doc("Path to extra repositories to include")
-        ] = None,
         force: Annotated[
             bool | None, Doc("Force image publishing (invalidate cache)")
         ] = False,
     ) -> Image:
         """Publish an image using Apko"""
+        current_platform: dagger.Platform = await self.container_.platform()
+
         apko = (
             self.apko()
             .container()
             .with_mounted_file(
-                path="$APKO_CONFIG_FILE",
+                path="/tmp/apko.yaml",
                 source=config,
                 owner=self.user,
-                expand=True,
             )
         )
 
@@ -241,35 +263,44 @@ class Apko:
             # Cache buster
             apko = apko.with_env_variable("CACHEBUSTER", str(datetime.now()))
 
-        cmd = ["publish", "$APKO_CONFIG_FILE"]
+        cmd = ["publish", "/tmp/apko.yaml"]
 
         cmd.extend(tags)
         cmd.extend(["--cache-dir", "$APKO_CACHE_DIR"])
 
-        if keyring_append:
-            apko = apko.with_mounted_file(
-                "$APKO_KEYRING_FILE",
-                source=keyring_append,
-                owner=self.user,
-                expand=True,
-            )
-            cmd.extend(["--keyring-append", "$APKO_KEYRING_FILE"])
-
-        if repository_append:
+        for index, source in enumerate(sources):
+            path: str = f"/tmp/sources/{index}"
             apko = apko.with_mounted_directory(
-                "$APKO_REPOSITORY_DIR",
-                source=repository_append,
+                path,
+                source=source,
                 owner=self.user,
-                expand=True,
             )
-            cmd.extend(["--repository-append", "$APKO_REPOSITORY_DIR"])
+            cmd.extend(["--include-paths", path])
+
+        for index, keyring in enumerate(keyrings):
+            path: str = f"/tmp/keyrings/{index}"
+            apko = apko.with_mounted_file(
+                path,
+                source=keyring,
+                owner=self.user,
+            )
+            cmd.extend(["--keyring-append", path])
+
+        for index, repository in enumerate(repositories):
+            path: str = f"/tmp/repositories/{index}"
+            apko = apko.with_mounted_directory(
+                path,
+                source=repository,
+                owner=self.user,
+            )
+            cmd.extend(["--repository-append", path])
 
         if sbom:
-            cmd.extend(["--sbom=true", "--sbom-path", "$APKO_SBOM_DIR"])
+            cmd.extend(["--sbom=true", "--sbom-path", "."])
         else:
             cmd.append("--sbom=false")
 
-        platforms = platforms or [await dag.default_platform()]
+        platforms = platforms or [current_platform]
         for platform in platforms:
             cmd.extend(["--arch", platform.split("/")[1]])
 
@@ -285,6 +316,6 @@ class Apko:
             container_=self.container().from_(address)
             if not local
             else self.container(),
-            sbom_=Sbom(directory_=apko.directory("$APKO_SBOM_DIR", expand=True)),
+            sbom_=Sbom(directory_=apko.directory(".").filter(include=["sbom-*.json"])),
             apko=self.apko(),
         )

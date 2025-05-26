@@ -12,7 +12,7 @@ dagger call --progress=plain \
   build \
     --config ./tests/config/apko.yaml  \
   with-scan \
-    --severity-cutoff critical \
+    --severity critical \
   publish \
     --tag ttl.sh/opopops/daggerverse/apko:24h \
   ref
@@ -22,7 +22,7 @@ dagger call --progress=plain \
     --config ./tests/config/apko.yaml  \
     --arch amd64,arm64 \
   with-scan \
-    --severity-cutoff critical \
+    --severity critical \
   publish \
     --tag ttl.sh/opopops/daggerverse/apko:24h \
   ref
@@ -34,7 +34,7 @@ dagger call --progress=plain \
     --tag ttl.sh/opopops/daggerverse/apko:24h \
     --arch amd64,arm64 \
   with-scan \
-    --severity-cutoff critical \
+    --severity critical \
   ref
 
 if [[ -e "/var/run/docker.sock" ]]; then
@@ -58,7 +58,7 @@ if [[ -n "$DOCKERHUB_USERNAME" ]] && [[ -n "$DOCKERHUB_TOKEN" ]]; then
       --config ./tests/config/apko.yaml  \
       --arch amd64,arm64 \
     with-scan \
-      --severity-cutoff critical \
+      --severity critical \
     publish \
       --tag docker.io/${DOCKERHUB_USERNAME}/private:apko \
     ref
