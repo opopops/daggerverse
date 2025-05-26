@@ -72,9 +72,9 @@ class Helm:
                 expand=True,
             )
             .with_user(self.user)
-            .with_workdir("/tmp/helm/registry")
+            .with_exec(["mkdir", "-p", "-m", "777", "/tmp/helm/registry"])
             .with_new_file(
-                "config.json",
+                "$HELM_REGISTRY_CONFIG",
                 contents="",
                 owner=self.user,
                 permissions=0o600,
