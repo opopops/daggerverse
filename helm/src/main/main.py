@@ -58,35 +58,30 @@ class Helm:
             container.from_(address=self.image)
             .with_user("0")
             .with_exec(["apk", "add", "--no-cache", "kubectl", pkg])
-            .with_entrypoint(["/usr/bin/helm"])
-            .with_user(self.user)
-            .with_env_variable("HELM_CACHE_HOME", "/tmp/helm/cache", expand=True)
-            .with_env_variable("HELM_CONFIG_HOME", "/tmp/helm/config", expand=True)
-            .with_env_variable("HELM_DATA_HOME", "/tmp/helm/data", expand=True)
+            .with_env_variable("HELM_CACHE_HOME", "/cache/helm")
+            .with_env_variable("HELM_WORK_DIR", "/helm")
             .with_env_variable(
                 "HELM_REGISTRY_CONFIG",
-                "${HELM_CONFIG_HOME}/registry/config.json",
+                "/tmp/helm/registry/config.json",
+            )
+            .with_mounted_cache(
+                "$HELM_CACHE_HOME",
+                dag.cache_volume("apko-cache"),
+                sharing=dagger.CacheSharingMode("LOCKED"),
+                owner=self.user,
                 expand=True,
             )
-            .with_exec(
-                [
-                    "mkdir",
-                    "-p",
-                    "$HELM_CACHE_HOME",
-                    "$HELM_CONFIG_HOME",
-                    "$HELM_CONFIG_HOME/registry",
-                    "$HELM_DATA_HOME",
-                ],
-                use_entrypoint=False,
-                expand=True,
-            )
+            .with_user(self.user)
+            .with_workdir("/tmp/helm/registry")
             .with_new_file(
-                "$HELM_REGISTRY_CONFIG",
+                "config.json",
                 contents="",
                 owner=self.user,
                 permissions=0o600,
                 expand=True,
             )
+            .with_workdir("$HELM_WORK_DIR", expand=True)
+            .with_entrypoint(["/usr/bin/helm"])
         )
 
         return self.container_
