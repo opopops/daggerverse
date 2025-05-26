@@ -44,12 +44,13 @@ class Cli:
                 expand=True,
             )
             .with_user(self.user)
-            .with_workdir("$DOCKER_CONFIG", expand=True)
+            .with_exec(["mkdir", "-p", "$DOCKER_CONFIG"], expand=True)
             .with_new_file(
-                "config.json",
+                "${DOCKER_CONFIG}/config.json",
                 contents="",
                 owner=self.user,
                 permissions=0o600,
+                expand=True,
             )
             .with_workdir("$APKO_WORK_DIR", expand=True)
             .with_entrypoint(["/usr/bin/apko"])
