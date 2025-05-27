@@ -56,6 +56,11 @@ class Apko:
         return self.apko_
 
     @function
+    def source(self) -> dagger.Directory:
+        """Returns the work directory"""
+        return self.workdir
+
+    @function
     def container(self) -> dagger.Container:
         """Returns the Apko container"""
         return self.apko().container()
