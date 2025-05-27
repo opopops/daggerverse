@@ -75,7 +75,7 @@ class Helm:
             .with_exec(["mkdir", "-p", "-m", "770", "/tmp/helm/registry"])
             .with_new_file(
                 "$HELM_REGISTRY_CONFIG",
-                contents="",
+                contents="{}",
                 owner=self.user,
                 permissions=0o600,
                 expand=True,
