@@ -11,7 +11,6 @@ class Crane:
     image: str
     version: str
     user: str
-    docker_config: dagger.File | None
     container_: dagger.Container | None
 
     @classmethod
@@ -22,14 +21,12 @@ class Crane:
         ),
         version: Annotated[str | None, Doc("Crane version")] = "latest",
         user: Annotated[str | None, Doc("Image user")] = "65532",
-        docker_config: Annotated[dagger.File | None, Doc("Docker config file")] = None,
     ):
         """Constructor"""
         return cls(
             image=image,
             version=version,
             user=user,
-            docker_config=docker_config,
             container_=None,
         )
 
@@ -63,15 +60,6 @@ class Crane:
             .with_entrypoint(["/usr/bin/crane"])
         )
 
-        if self.docker_config:
-            self.container_ = self.container_.with_file(
-                "${DOCKER_CONFIG}/config.json",
-                source=self.docker_config,
-                owner=self.user,
-                permissions=0o600,
-                expand=True,
-            )
-
         return self.container_
 
     @function
@@ -96,6 +84,11 @@ class Crane:
             "REGISTRY_PASSWORD", secret
         ).with_exec(cmd, use_entrypoint=False)
         return self
+
+    @function
+    def docker_config(self) -> dagger.File:
+        """Returns the Docker config file"""
+        return self.container().file("${DOCKER_CONFIG}/config.json", expand=True)
 
     @function
     def with_docker_config(
