@@ -9,6 +9,11 @@ MODULE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "$MODULE_DIR"
 
 dagger call --progress=plain \
+  lint \
+    --source ./tests/helm/daggerverse \
+    --strict
+
+dagger call --progress=plain \
   with-registry-auth \
     --username ${GITHUB_USERNAME} \
     --secret env:GITHUB_TOKEN \

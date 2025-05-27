@@ -72,14 +72,7 @@ class Helm:
                 expand=True,
             )
             .with_user(self.user)
-            .with_exec(["mkdir", "-p", "-m", "777", "/tmp/helm/registry"])
-            .with_new_file(
-                "$HELM_REGISTRY_CONFIG",
-                contents="",
-                owner=self.user,
-                permissions=0o600,
-                expand=True,
-            )
+            .with_exec(["mkdir", "-p", "-m", "770", "/tmp/helm/registry"])
             .with_workdir("$HELM_WORK_DIR", expand=True)
             .with_entrypoint(["/usr/bin/helm"])
         )
@@ -123,7 +116,9 @@ class Helm:
         self,
         source: Annotated[dagger.Directory, Doc("Chart directory")],
         strict: Annotated[bool | None, Doc("Fail on lint warnings")] = False,
-        quiet: Annotated[bool | None, Doc("Print only warnings and errors")] = False,
+        quiet: Annotated[
+            bool | None, Doc("Print only warnings and errors"), Name("mute")
+        ] = False,
     ) -> str:
         """Verify that the chart is well-formed"""
         container: dagger.Container = (
@@ -133,7 +128,7 @@ class Helm:
             .with_workdir("$HELM_CHART_PATH", expand=True)
         )
 
-        cmd = ["lint", "."]
+        cmd: list[str] = ["lint", "."]
         if strict:
             cmd.extend(["--strict"])
         if quiet:
@@ -146,7 +141,9 @@ class Helm:
         self,
         source: Annotated[dagger.Directory, Doc("Chart directory")],
         strict: Annotated[bool | None, Doc("Fail on lint warnings")] = False,
-        quiet: Annotated[bool | None, Doc("Print only warnings and errors")] = False,
+        quiet: Annotated[
+            bool | None, Doc("Print only warnings and errors"), Name("mute")
+        ] = False,
     ) -> Self:
         """Verify that the chart is well-formed (for chaining)"""
         await self.lint(source=source, strict=strict, quiet=quiet)
@@ -303,8 +300,10 @@ class Helm:
 
         await container.with_exec(cmd, use_entrypoint=True, expand=True).stdout()
         image: str = f"{registry_address}/{info.get('name')}:{info.get('version')}"
-        digest: str = await dag.crane(docker_config=self.helm_registry_config()).digest(
-            image
+        digest: str = (
+            await dag.crane()
+            .with_docker_config(self.helm_registry_config())
+            .digest(image)
         )
         return f"{image}@{digest}"
 
