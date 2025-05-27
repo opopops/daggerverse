@@ -10,7 +10,6 @@ class Grype:
     image: str
     version: str
     user: str
-    docker_config: dagger.File | None
     container_: dagger.Container | None
 
     @classmethod
@@ -21,16 +20,9 @@ class Grype:
         ),
         version: Annotated[str | None, Doc("Grype version")] = "latest",
         user: Annotated[str | None, Doc("Image user")] = "65532",
-        docker_config: Annotated[dagger.File | None, Doc("Docker config file")] = None,
     ):
         """Constructor"""
-        return cls(
-            image=image,
-            version=version,
-            user=user,
-            docker_config=docker_config,
-            container_=None,
-        )
+        return cls(image=image, version=version, user=user, container_=None)
 
     @function
     def container(self) -> dagger.Container:
@@ -49,6 +41,7 @@ class Grype:
             .with_user("0")
             .with_exec(["apk", "add", "--no-cache", "docker-cli", pkg])
             .with_env_variable("DOCKER_CONFIG", "/tmp/docker")
+            .with_env_variable("DOCKER_HOST", "unix:///tmp/docker.sock")
             .with_env_variable("GRYPE_CACHE_DIR", "/cache/grype")
             .with_env_variable(
                 "GRYPE_DB_CACHE_DIR", "${GRYPE_CACHE_DIR}/db", expand=True
@@ -74,16 +67,20 @@ class Grype:
             .with_entrypoint(["/usr/bin/grype"])
         )
 
-        if self.docker_config:
-            self.container_ = self.container_.with_file(
-                "${DOCKER_CONFIG}/config.json",
-                source=self.docker_config,
-                owner=self.user,
-                permissions=0o600,
-                expand=True,
-            )
-
         return self.container_
+
+    @function
+    def with_docker_socket(
+        self,
+        source: Annotated[
+            dagger.Socket, Doc("Identifier of the Docker socket to forward")
+        ],
+    ) -> Self:
+        """Retrieves this Apko CLI plus a socket forwarded to the given Unix socket path"""
+        self.container_ = self.container().with_unix_socket(
+            path="/tmp/docker.sock", source=source, owner=self.user
+        )
+        return self
 
     @function
     def with_registry_auth(
@@ -109,6 +106,11 @@ class Grype:
         return self
 
     @function
+    def docker_config(self) -> dagger.File:
+        """Returns the Docker config file"""
+        return self.container().file("${DOCKER_CONFIG}/config.json", expand=True)
+
+    @function
     def with_docker_config(
         self, docker_config: Annotated[dagger.File, Doc("Docker config file")]
     ) -> Self:
@@ -126,7 +128,7 @@ class Grype:
     def scan(
         self,
         source: Annotated[str, Doc("Source to scan")],
-        severity_cutoff: (
+        severity: (
             Annotated[
                 str | None,
                 Doc(
@@ -137,7 +139,7 @@ class Grype:
         fail: Annotated[
             bool | None, Doc("Set to false to avoid failing based on severity-cutoff")
         ] = True,
-        output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
+        output_format: Annotated[str, Doc("Report output formatter")] = "table",
     ) -> dagger.File:
         """Scan"""
         output_file = f"report.{output_format}"
@@ -147,8 +149,8 @@ class Grype:
 
         cmd = [source, "--output", output_format, "--file", output_file]
 
-        if severity_cutoff:
-            cmd.extend(["--fail-on", severity_cutoff])
+        if severity:
+            cmd.extend(["--fail-on", severity])
 
         container: dagger.Container = self.container()
         container = container.with_exec(cmd, use_entrypoint=True, expect=expect)
@@ -158,7 +160,7 @@ class Grype:
     def with_scan(
         self,
         source: Annotated[str, Doc("Source to scan")],
-        severity_cutoff: (
+        severity: (
             Annotated[
                 str | None,
                 Doc(
@@ -169,14 +171,11 @@ class Grype:
         fail: Annotated[
             bool | None, Doc("Set to false to avoid failing based on severity-cutoff")
         ] = True,
-        output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
+        output_format: Annotated[str, Doc("Report output formatter")] = "table",
     ) -> Self:
         """Scan (for chaining)"""
         self.scan(
-            source=source,
-            severity_cutoff=severity_cutoff,
-            fail=fail,
-            output_format=output_format,
+            source=source, severity=severity, fail=fail, output_format=output_format
         )
         return self
 
@@ -185,7 +184,7 @@ class Grype:
         self,
         source: Annotated[str, Doc("Image to scan")],
         source_type: Annotated[str | None, Doc("Source type")] = "registry",
-        severity_cutoff: (
+        severity: (
             Annotated[
                 str | None,
                 Doc(
@@ -196,7 +195,7 @@ class Grype:
         fail: Annotated[
             bool | None, Doc("Set to false to avoid failing based on severity-cutoff")
         ] = True,
-        output_format: Annotated[str | None, Doc("Report output formatter")] = "sarif",
+        output_format: Annotated[str | None, Doc("Report output formatter")] = "table",
     ) -> dagger.File:
         """Scan container image"""
         output_file = f"report.{output_format}"
@@ -212,8 +211,8 @@ class Grype:
             output_file,
         ]
 
-        if severity_cutoff:
-            cmd.extend(["--fail-on", severity_cutoff])
+        if severity:
+            cmd.extend(["--fail-on", severity])
 
         container: dagger.Container = self.container()
         container = container.with_exec(cmd, use_entrypoint=True, expect=expect)
@@ -224,7 +223,7 @@ class Grype:
         self,
         source: Annotated[str, Doc("Image to scan")],
         source_type: Annotated[str | None, Doc("Source type")] = "registry",
-        severity_cutoff: (
+        severity: (
             Annotated[
                 str | None,
                 Doc(
@@ -235,13 +234,13 @@ class Grype:
         fail: Annotated[
             bool | None, Doc("Set to false to avoid failing based on severity-cutoff")
         ] = True,
-        output_format: Annotated[str, Doc("Report output formatter")] = "sarif",
+        output_format: Annotated[str, Doc("Report output formatter")] = "table",
     ) -> Self:
         """Scan container image (for chaining)"""
         self.scan_image(
             source=source,
             source_type=source_type,
-            severity_cutoff=severity_cutoff,
+            severity=severity,
             fail=fail,
             output_format=output_format,
         )
@@ -252,7 +251,7 @@ class Grype:
         self,
         source: Annotated[dagger.Directory, Doc("Directory to scan")],
         source_type: Annotated[str | None, Doc("Source type")] | None = "dir",
-        severity_cutoff: (
+        severity: (
             Annotated[
                 str | None,
                 Doc(
@@ -264,7 +263,7 @@ class Grype:
         fail: Annotated[
             bool | None, Doc("Set to false to avoid failing based on severity-cutoff")
         ] = True,
-        output_format: Annotated[str | None, Doc("Report output formatter")] = "sarif",
+        output_format: Annotated[str | None, Doc("Report output formatter")] = "table",
     ) -> dagger.File:
         """Scan directory"""
         output_file = f"report.{output_format}"
@@ -280,8 +279,8 @@ class Grype:
             output_file,
         ]
 
-        if severity_cutoff:
-            cmd.extend(["--fail-on", severity_cutoff])
+        if severity:
+            cmd.extend(["--fail-on", severity])
 
         container: dagger.Container = (
             self.container()
@@ -297,7 +296,7 @@ class Grype:
         self,
         source: Annotated[dagger.Directory, Doc("Directory to scan")],
         source_type: Annotated[str | None, Doc("Source type")] = "registry",
-        severity_cutoff: (
+        severity: (
             Annotated[
                 str | None,
                 Doc(
@@ -308,13 +307,13 @@ class Grype:
         fail: Annotated[
             bool | None, Doc("Set to false to avoid failing based on severity-cutoff")
         ] = True,
-        output_format: Annotated[str | None, Doc("Report output formatter")] = "sarif",
+        output_format: Annotated[str | None, Doc("Report output formatter")] = "table",
     ) -> Self:
         """Scan dir (for chaining)"""
         self.scan_directory(
             source=source,
             source_type=source_type,
-            severity_cutoff=severity_cutoff,
+            severity=severity,
             fail=fail,
             output_format=output_format,
         )
@@ -325,7 +324,7 @@ class Grype:
         self,
         source: Annotated[dagger.File, Doc("File to scan")],
         source_type: Annotated[str | None, Doc("Source type")] = "file",
-        severity_cutoff: (
+        severity: (
             Annotated[
                 str | None,
                 Doc(
@@ -336,7 +335,7 @@ class Grype:
         fail: Annotated[
             bool | None, Doc("Set to false to avoid failing based on severity-cutoff")
         ] = True,
-        output_format: Annotated[str | None, Doc("Report output formatter")] = "sarif",
+        output_format: Annotated[str | None, Doc("Report output formatter")] = "table",
     ) -> dagger.File:
         """Scan file"""
         output_file = f"report.{output_format}"
@@ -352,8 +351,8 @@ class Grype:
             output_file,
         ]
 
-        if severity_cutoff:
-            cmd.extend(["--fail-on", severity_cutoff])
+        if severity:
+            cmd.extend(["--fail-on", severity])
 
         container: dagger.Container = (
             self.container()
@@ -367,7 +366,7 @@ class Grype:
         self,
         source: Annotated[dagger.File, Doc("File to scan")],
         source_type: Annotated[str | None, Doc("Source type")] = "registry",
-        severity_cutoff: (
+        severity: (
             Annotated[
                 str | None,
                 Doc(
@@ -378,13 +377,13 @@ class Grype:
         fail: Annotated[
             bool | None, Doc("Set to false to avoid failing based on severity-cutoff")
         ] = True,
-        output_format: Annotated[str | None, Doc("Report output formatter")] = "sarif",
+        output_format: Annotated[str | None, Doc("Report output formatter")] = "table",
     ) -> Self:
         """Scan file (for chaining)"""
         self.scan_file(
             source=source,
             source_type=source_type,
-            severity_cutoff=severity_cutoff,
+            severity=severity,
             fail=fail,
             output_format=output_format,
         )

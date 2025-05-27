@@ -11,13 +11,13 @@ cd "$MODULE_DIR"
 dagger call --progress=plain \
   scan \
     --source ghcr.io/opopops/wolfi/bash:latest \
-    --severity-cutoff high \
+    --severity high \
     --output-format table \
   contents
 
 dagger call --progress=plain \
   scan-file \
     --source ./tests/files/test.file \
-    --severity-cutoff high \
+    --severity high \
     --output-format table \
   contents
