@@ -202,8 +202,8 @@ class Apko:
             )
             cmd.extend(["--include-paths", path])
 
-        for index, keyring in enumerate(keyrings):
-            path: str = f"/tmp/keyrings/{index}"
+        for keyring in keyrings:
+            path: str = f"/tmp/keyrings/{await keyring.name()}"
             apko = apko.with_mounted_file(
                 path,
                 source=keyring,
