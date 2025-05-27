@@ -73,6 +73,13 @@ class Helm:
             )
             .with_user(self.user)
             .with_exec(["mkdir", "-p", "-m", "770", "/tmp/helm/registry"])
+            .with_new_file(
+                "$HELM_REGISTRY_CONFIG",
+                contents="",
+                owner=self.user,
+                permissions=0o600,
+                expand=True,
+            )
             .with_workdir("$HELM_WORK_DIR", expand=True)
             .with_entrypoint(["/usr/bin/helm"])
         )
