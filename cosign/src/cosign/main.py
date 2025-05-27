@@ -13,6 +13,13 @@ class Cosign:
     user: str
     container_: dagger.Container | None
 
+    private_key_: dagger.Secret | None = None
+    public_key_: dagger.File | None = None
+    password_: dagger.Secret | None = None
+
+    oidc_provider_: str | None = None
+    oidc_issuer_: str | None = None
+
     @classmethod
     async def create(
         cls,
@@ -45,6 +52,7 @@ class Cosign:
             container.from_(address=self.image)
             .with_user("0")
             .with_exec(["apk", "add", "--no-cache", pkg])
+            .with_env_variable("COSIGN_PASSWORD", "")
             .with_env_variable("COSIGN_WORK_DIR", "/cosign")
             .with_env_variable("DOCKER_CONFIG", "/tmp/docker")
             .with_user(self.user)
@@ -135,20 +143,72 @@ class Cosign:
         return self
 
     @function
-    async def generate_key_pair(
+    def generate_key_pair(
         self,
         password: Annotated[dagger.Secret | None, Doc("Key password")] = dag.set_secret(
             "cosign-password", ""
         ),
     ) -> dagger.Directory:
         """Generate key pair"""
-
         container = (
             self.container()
             .with_secret_variable("COSIGN_PASSWORD", password)
             .with_exec(["generate-key-pair"], use_entrypoint=True)
         )
         return container.directory(".")
+
+    @function
+    async def with_generate_key_pair(
+        self,
+        password: Annotated[dagger.Secret | None, Doc("Key password")] = dag.set_secret(
+            "cosign-password", ""
+        ),
+    ) -> Self:
+        """Generate and include a new key pair (for chaining)"""
+        keys: dagger.Directory = self.generate_key_pair(password=password)
+        self.with_private_key(
+            key=dag.set_secret("cosign-key", await keys.file("cosign.key").contents()),
+            password=password,
+            public_key=await keys.file("cosign.pub"),
+        )
+        return self
+
+    @function
+    def with_private_key(
+        self,
+        key: Annotated[dagger.Secret, Doc("Key to use for signing")],
+        password: Annotated[dagger.Secret | None, Doc("Key password")] = dag.set_secret(
+            "cosign-password", ""
+        ),
+        public_key: Annotated[
+            dagger.File | None, Doc("Public key to use for verification")
+        ] = None,
+    ) -> Self:
+        """Include the specified private key (for chaining)"""
+        self.password_ = password
+        self.private_key_ = key
+        self.public_key_ = public_key
+        self.container_ = (
+            self.container()
+            .with_secret_variable("COSIGN_PRIVATE_KEY", key)
+            .with_secret_variable("COSIGN_PASSWORD", password)
+        )
+        return self
+
+    @function
+    def with_oidc(
+        self,
+        provider: Annotated[
+            str | None, Doc("Specify the provider to get the OIDC token from")
+        ] = "",
+        issuer: Annotated[
+            str | None, Doc("OIDC provider to be used to issue ID token")
+        ] = "",
+    ) -> Self:
+        """Set OIDC provider and issuer (for chaining)"""
+        self.oidc_provider_ = provider
+        self.oidc_issuer_ = issuer
+        return self
 
     @function
     async def clean(
@@ -183,9 +243,7 @@ class Cosign:
             list[str] | None, Doc("Extra key=value pairs to sign")
         ] = (),
         private_key: Annotated[dagger.Secret | None, Doc("Cosign private key")] = None,
-        password: Annotated[
-            dagger.Secret | None, Doc("Cosign password")
-        ] = dag.set_secret("cosign_password", ""),
+        password: Annotated[dagger.Secret | None, Doc("Cosign password")] = None,
         identity_token: Annotated[
             dagger.Secret | None, Doc("Cosign identity token")
         ] = None,
@@ -209,20 +267,25 @@ class Cosign:
         for annotation in annotations:
             cmd.extend(["--annotations", annotation])
 
-        if private_key:
+        if private_key or self.private_key_:
             cmd.extend(["--key", "env://COSIGN_PRIVATE_KEY"])
             container = container.with_secret_variable(
-                "COSIGN_PASSWORD", password
-            ).with_secret_variable("COSIGN_PRIVATE_KEY", private_key)
+                "COSIGN_PRIVATE_KEY", private_key
+            )
+
+        if password or self.password_:
+            container = container.with_secret_variable(
+                "COSIGN_PASSWORD", password or self.password_
+            )
+
+        if oidc_provider or self.oidc_provider_:
+            cmd.extend(["--oidc-provider", oidc_provider or self.oidc_provider_])
+
+        if oidc_issuer or self.oidc_issuer_:
+            cmd.extend(["--oidc-issuer", oidc_issuer or self.oidc_issuer_])
 
         if identity_token:
             cmd.extend(["--identity-token", await identity_token.plaintext()])
-
-        if oidc_provider:
-            cmd.extend(["--oidc-provider", oidc_provider])
-
-        if oidc_issuer:
-            cmd.extend(["--oidc-issuer", oidc_issuer])
 
         if recursive:
             cmd.append("--recursive")
@@ -309,11 +372,22 @@ class Cosign:
 
         cmd = ["attest", image]
 
-        if private_key:
+        if private_key or self.private_key_:
             cmd.extend(["--key", "env://COSIGN_PRIVATE_KEY"])
             container = container.with_secret_variable(
-                "COSIGN_PASSWORD", password
-            ).with_secret_variable("COSIGN_PRIVATE_KEY", private_key)
+                "COSIGN_PRIVATE_KEY", private_key
+            )
+
+        if password or self.password_:
+            container = container.with_secret_variable(
+                "COSIGN_PASSWORD", password or self.password_
+            )
+
+        if oidc_provider or self.oidc_provider_:
+            cmd.extend(["--oidc-provider", oidc_provider or self.oidc_provider_])
+
+        if oidc_issuer or self.oidc_issuer_:
+            cmd.extend(["--oidc-issuer", oidc_issuer or self.oidc_issuer_])
 
         if identity_token:
             cmd.extend(["--identity-token", await identity_token.plaintext()])
@@ -323,12 +397,6 @@ class Cosign:
 
         if predicate:
             cmd.extend(["--predicate", f"/tmp/{predicate_name}"])
-
-        if oidc_provider:
-            cmd.extend(["--oidc-provider", oidc_provider])
-
-        if oidc_issuer:
-            cmd.extend(["--oidc-issuer", oidc_issuer])
 
         if recursive:
             cmd.append("--recursive")
