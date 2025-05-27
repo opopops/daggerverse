@@ -11,6 +11,7 @@ class Cosign:
     image: str
     version: str
     user: str
+
     container_: dagger.Container | None
 
     private_key_: dagger.Secret | None = None
@@ -19,6 +20,8 @@ class Cosign:
 
     oidc_provider_: str | None = None
     oidc_issuer_: str | None = None
+
+    annotations_: list[str] | None = ()
 
     @classmethod
     async def create(
@@ -211,6 +214,15 @@ class Cosign:
         return self
 
     @function
+    def with_annotations(
+        self,
+        annotations: Annotated[list[str], Doc("Extra key=value pairs to sign")],
+    ) -> Self:
+        """Set OIDC provider and issuer (for chaining)"""
+        self.annotations_ = annotations
+        return self
+
+    @function
     async def clean(
         self,
         image: Annotated[str, Doc("Image digest URI")],
@@ -264,19 +276,18 @@ class Cosign:
         container = self.container()
         cmd = ["sign", image]
 
-        for annotation in annotations:
+        for annotation in (self.annotations_ or []) + (annotations or []):
             cmd.extend(["--annotations", annotation])
 
         if private_key or self.private_key_:
             cmd.extend(["--key", "env://COSIGN_PRIVATE_KEY"])
+        if private_key:
             container = container.with_secret_variable(
                 "COSIGN_PRIVATE_KEY", private_key
             )
 
-        if password or self.password_:
-            container = container.with_secret_variable(
-                "COSIGN_PASSWORD", password or self.password_
-            )
+        if password:
+            container = container.with_secret_variable("COSIGN_PASSWORD", password)
 
         if oidc_provider or self.oidc_provider_:
             cmd.extend(["--oidc-provider", oidc_provider or self.oidc_provider_])
@@ -374,14 +385,13 @@ class Cosign:
 
         if private_key or self.private_key_:
             cmd.extend(["--key", "env://COSIGN_PRIVATE_KEY"])
+        if private_key:
             container = container.with_secret_variable(
                 "COSIGN_PRIVATE_KEY", private_key
             )
 
-        if password or self.password_:
-            container = container.with_secret_variable(
-                "COSIGN_PASSWORD", password or self.password_
-            )
+        if password:
+            container = container.with_secret_variable("COSIGN_PASSWORD", password)
 
         if oidc_provider or self.oidc_provider_:
             cmd.extend(["--oidc-provider", oidc_provider or self.oidc_provider_])
