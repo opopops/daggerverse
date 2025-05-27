@@ -19,21 +19,17 @@ class Image:
 
     apko: Cli
 
-    def docker_config(self) -> dagger.File:
-        """Returns the docker config file"""
-        return self.apko.container().file("${DOCKER_CONFIG}/config.json", expand=True)
+    def cosign(self) -> dagger.Cosign:
+        """Returns cosign"""
+        return dag.cosign().with_docker_config(self.apko.docker_config())
 
     def crane(self) -> dagger.Crane:
         """Returns crane"""
-        return dag.crane(docker_config=self.docker_config())
-
-    def cosign(self) -> dagger.Cosign:
-        """Returns cosign"""
-        return dag.cosign(docker_config=self.docker_config())
+        return dag.crane().with_docker_config(self.apko.docker_config())
 
     def grype(self) -> dagger.Grype:
         """Returns grype"""
-        return dag.grype(docker_config=self.docker_config())
+        return dag.grype().with_docker_config(self.apko.docker_config())
 
     async def platform_variants(self) -> list[dagger.Container]:
         """Returns the image platform variants"""
@@ -171,7 +167,7 @@ class Image:
         grype = self.grype()
         return grype.scan_image(
             source=self.address,
-            severity_cutoff=severity,
+            severity=severity,
             fail=fail,
             output_format=output_format,
         )

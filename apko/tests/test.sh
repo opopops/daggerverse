@@ -39,7 +39,7 @@ dagger call --progress=plain \
 
 if [[ -e "/var/run/docker.sock" ]]; then
   dagger call --progress=plain \
-    with-unix-socket \
+    with-docker-socket \
       --source /var/run/docker.sock \
     publish \
       --config ./tests/config/apko.yaml  \

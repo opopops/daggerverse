@@ -104,7 +104,7 @@ class Build:
         return dag.grype().scan_file(
             source=self.container_.as_tarball(),
             source_type="oci-archive",
-            severity_cutoff=severity,
+            severity=severity,
             fail=fail,
             output_format=output_format,
         )

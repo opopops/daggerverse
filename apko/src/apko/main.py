@@ -130,12 +130,14 @@ class Apko:
         return self
 
     @function
-    def with_unix_socket(
+    def with_docker_socket(
         self,
-        source: Annotated[dagger.Socket, Doc("Identifier of the socket to forward")],
+        source: Annotated[
+            dagger.Socket, Doc("Identifier of the Docker socket to forward")
+        ],
     ) -> Self:
         """Retrieves the Apko container plus a socket forwarded to the given Unix socket path"""
-        self.apko_ = self.apko().with_unix_socket(source=source)
+        self.apko_ = self.apko().with_docker_socket(source=source)
         return self
 
     @function

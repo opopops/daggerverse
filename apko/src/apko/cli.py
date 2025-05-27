@@ -135,9 +135,11 @@ class Cli:
         return self
 
     @function
-    def with_unix_socket(
+    def with_docker_socket(
         self,
-        source: Annotated[dagger.Socket, Doc("Identifier of the socket to forward")],
+        source: Annotated[
+            dagger.Socket, Doc("Identifier of the Docker socket to forward")
+        ],
     ) -> Self:
         """Retrieves this Apko CLI plus a socket forwarded to the given Unix socket path"""
         self.container_ = self.container().with_unix_socket(
