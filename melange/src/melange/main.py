@@ -156,7 +156,7 @@ class Melange:
         )
 
     @function
-    def build(
+    async def build(
         self,
         config: Annotated[dagger.File, Doc("Config file")],
         version: Annotated[str | None, Doc("Version to bump to")] = "",
@@ -171,6 +171,9 @@ class Melange:
         ] = (),
     ) -> dagger.Directory:
         """Build a package from a YAML configuration file"""
+        if not archs:
+            archs = [await self.container().platform()]
+
         if signing_key is None and self.signing_key_ is None:
             raise TypeError("You must provide a signing key to proceed.")
 
@@ -234,7 +237,7 @@ class Melange:
         )
 
     @function
-    def with_build(
+    async def with_build(
         self,
         config: Annotated[dagger.File, Doc("Config file")],
         version: Annotated[str | None, Doc("Version to bump to")] = "",
@@ -246,7 +249,7 @@ class Melange:
         ] = (),
     ) -> Self:
         """Build a package from a YAML configuration file (for chaining)"""
-        packages: dagger.Directory = self.build(
+        packages: dagger.Directory = await self.build(
             config=config, version=version, signing_key=signing_key, archs=archs
         )
         self.container_ = self.container().with_directory(
