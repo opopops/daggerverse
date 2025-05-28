@@ -34,6 +34,16 @@ class Melange:
             user=user,
         )
 
+    def _signing_key(
+        self,
+        name: Annotated[str | None, Doc("Key name")] = "melange.rsa",
+        private: Annotated[dagger.Secret | None, Doc("private key")] = None,
+    ) -> SigningKey:
+        """Signing key functions"""
+        return SigningKey(
+            container=self.container(), user=self.user, name=name, private=private
+        )
+
     @function
     def container(self) -> dagger.Container:
         """Returns melange container"""
@@ -74,17 +84,6 @@ class Melange:
         return self.container_
 
     @function
-    def signing_key(
-        self,
-        name: Annotated[str | None, Doc("Key name")] = "melange.rsa",
-        private: Annotated[dagger.Secret | None, Doc("private key")] = None,
-    ) -> SigningKey:
-        """Signing key functions"""
-        return SigningKey(
-            container=self.container(), user=self.user, name=name, private=private
-        )
-
-    @function
     def keygen(
         self,
         name: Annotated[str | None, Doc("Key name")] = "melange.rsa",
@@ -93,7 +92,7 @@ class Melange:
         ] = 4096,
     ) -> dagger.Directory:
         """Generate a key pair for package signing"""
-        return self.signing_key().generate(name=name, size=key_size)
+        return self._signing_key().generate(name=name, size=key_size)
 
     @function
     async def with_keygen(
@@ -104,7 +103,7 @@ class Melange:
         ] = 4096,
     ) -> Self:
         """Generate a key for package signing (for chaining)"""
-        self.signing_key_ = await self.signing_key().with_generate(
+        self.signing_key_ = await self._signing_key().with_generate(
             name=name, size=key_size
         )
         self.container_ = self.container().with_mounted_secret(
@@ -115,15 +114,27 @@ class Melange:
     @function
     def with_signing_key(
         self,
-        signing_key: Annotated[dagger.Secret, Doc("Key to use for signing")],
+        key: Annotated[dagger.Secret, Doc("Key to use for signing")],
         name: Annotated[str | None, Doc("Key name")] = "melange.rsa",
     ) -> Self:
         """Include the specified signing key (for chaining)"""
-        self.signing_key_ = self.signing_key(name=name, private=signing_key)
+        self.signing_key_ = self._signing_key(name=name, private=key)
         self.container_ = self.container().with_mounted_secret(
             f"/tmp/{name}", self.signing_key_.private, owner=self.user
         )
         return self
+
+    @function
+    def has_signing_key(self) -> bool:
+        """Check if signing key is present"""
+        if self.signing_key_:
+            return True
+        return False
+
+    @function
+    def public_key(self) -> dagger.File:
+        """Returns the public key"""
+        return self.signing_key_.public()
 
     @function
     def bump(
@@ -175,7 +186,7 @@ class Melange:
             )
 
         if signing_key:
-            self.signing_key_ = self.signing_key(private=signing_key)
+            self.signing_key_ = self._signing_key(private=signing_key)
             container = container.with_mounted_secret(
                 f"/tmp/{self.signing_key_.name}",
                 self.signing_key_,
