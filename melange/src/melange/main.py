@@ -80,7 +80,9 @@ class Melange:
         private: Annotated[dagger.Secret | None, Doc("private key")] = None,
     ) -> SigningKey:
         """Signing key functions"""
-        return SigningKey(container=self.container(), name=name, private=private)
+        return SigningKey(
+            container=self.container(), user=self.user, name=name, private=private
+        )
 
     @function
     def keygen(

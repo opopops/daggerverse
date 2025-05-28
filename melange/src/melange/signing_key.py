@@ -12,6 +12,7 @@ class SigningKey:
     private: dagger.Secret | None = field(default=None)
 
     container: dagger.Container
+    user: str
 
     @function
     def generate(
@@ -44,6 +45,7 @@ class SigningKey:
             self.container.with_mounted_secret(
                 "/tmp/melange.rsa",
                 source=self.private,
+                owner=self.user,
             )
             .with_exec(
                 [
