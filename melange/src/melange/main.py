@@ -3,6 +3,8 @@ from typing import Annotated, Self
 import dagger
 from dagger import Doc, Name, dag, function, object_type
 
+from .signing_key import SigningKey
+
 
 @object_type
 class Melange:
@@ -11,9 +13,10 @@ class Melange:
     image: str
     version: str
     user: str
-    signing_key_: dagger.Secret | None
-    public_key_: dagger.File | None
-    container_: dagger.Container | None
+
+    signing_key_: SigningKey | None = None
+
+    container_: dagger.Container | None = None
 
     @classmethod
     async def create(
@@ -29,32 +32,6 @@ class Melange:
             image=image,
             version=version,
             user=user,
-            signing_key_=None,
-            public_key_=None,
-            container_=None,
-        )
-
-    def _public_key(self, signing_key: dagger.Secret) -> dagger.File:
-        """Return the public key from the specified secret key"""
-        return (
-            self.container()
-            .with_mounted_secret(
-                "/tmp/melange.rsa",
-                source=signing_key,
-                owner=self.user,
-            )
-            .with_exec(
-                [
-                    "openssl",
-                    "rsa",
-                    "-in",
-                    "/tmp/melange.rsa",
-                    "-pubout",
-                    "-out",
-                    "melange.rsa.pub",
-                ],
-            )
-            .file("melange.rsa.pub")
         )
 
     @function
@@ -97,63 +74,54 @@ class Melange:
         return self.container_
 
     @function
+    def signing_key(
+        self,
+        name: Annotated[str | None, Doc("Key name")] = "melange.rsa",
+        private: Annotated[dagger.Secret | None, Doc("private key")] = None,
+    ) -> SigningKey:
+        """Signing key functions"""
+        return SigningKey(container=self.container(), name=name, private=private)
+
+    @function
     def keygen(
         self,
+        name: Annotated[str | None, Doc("Key name")] = "melange.rsa",
         key_size: Annotated[
             int | None, Doc("the size of the prime to calculate ")
         ] = 4096,
     ) -> dagger.Directory:
         """Generate a key pair for package signing"""
-        cmd = ["keygen", "--key-size", str(key_size), "melange.rsa"]
-        return (
-            self.container()
-            .with_exec(cmd, use_entrypoint=True, expand=True)
-            .directory(".")
-        )
+        return self.signing_key().generate(name=name, size=key_size)
 
     @function
     async def with_keygen(
         self,
+        name: Annotated[str | None, Doc("Key name")] = "melange.rsa",
         key_size: Annotated[
             int | None, Doc("the size of the prime to calculate ")
         ] = 4096,
     ) -> Self:
-        """Generate a key pair for package signing for chaining (for testing purpose)"""
-        keys_dir: dagger.Directory = self.keygen(key_size=key_size)
-        self.signing_key_ = dag.set_secret(
-            "melange.rsa", await keys_dir.file("melange.rsa").contents()
+        """Generate a key for package signing (for chaining)"""
+        self.signing_key_ = await self.signing_key().with_generate(
+            name=name, size=key_size
         )
-        self.public_key_ = keys_dir.file("melange.rsa.pub")
         self.container_ = self.container().with_mounted_secret(
-            "/tmp/melange.rsa", self.signing_key_, owner=self.user
+            f"/tmp/{name}", self.signing_key_.private, owner=self.user
         )
         return self
-
-    @function
-    def signing_key(self) -> dagger.Secret:
-        """Return the signing key"""
-        return self.signing_key_
 
     @function
     def with_signing_key(
         self,
         signing_key: Annotated[dagger.Secret, Doc("Key to use for signing")],
+        name: Annotated[str | None, Doc("Key name")] = "melange.rsa",
     ) -> Self:
         """Include the specified signing key (for chaining)"""
-        self.signing_key_ = signing_key
-        self.public_key_ = self._public_key(signing_key)
+        self.signing_key_ = self.signing_key(name=name, private=signing_key)
         self.container_ = self.container().with_mounted_secret(
-            "/tmp/melange.rsa", self.signing_key_, owner=self.user
+            f"/tmp/{name}", self.signing_key_.private, owner=self.user
         )
         return self
-
-    @function
-    def public_key(self) -> dagger.File:
-        """Return the public key"""
-        if self.public_key_:
-            return self.public_key_
-        self.public_key_ = self._public_key(self.signing_key_)
-        return self.public_key_
 
     @function
     def bump(
@@ -190,6 +158,9 @@ class Melange:
         ] = (),
     ) -> dagger.Directory:
         """Build a package from a YAML configuration file"""
+        if signing_key is None and self.signing_key_ is None:
+            raise TypeError("You must provide a signing key to proceed.")
+
         container: dagger.Container = self.container().with_file(
             path="melange.yaml",
             source=config,
@@ -202,17 +173,18 @@ class Melange:
             )
 
         if signing_key:
-            self.signing_key_ = signing_key
-            self.public_key_ = self._public_key(signing_key)
+            self.signing_key_ = self.signing_key(private=signing_key)
             container = container.with_mounted_secret(
-                "/tmp/melange.rsa", self.signing_key_, owner=self.user
+                f"/tmp/{self.signing_key_.name}",
+                self.signing_key_,
+                owner=self.user,
             )
 
         cmd = [
             "build",
             "melange.yaml",
             "--signing-key",
-            "/tmp/melange.rsa",
+            f"/tmp/{self.signing_key_.name}",
             "--apk-cache-dir",
             "$MELANGE_APK_CACHE_DIR",
             "--cache-dir",
@@ -241,7 +213,11 @@ class Melange:
             .directory(
                 "packages",
             )
-            .with_file("melange.rsa.pub", self.public_key_, permissions=0o644)
+            .with_file(
+                f"{self.signing_key_}.pub",
+                self.signing_key_.public(),
+                permissions=0o644,
+            )
         )
 
     @function
