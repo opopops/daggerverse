@@ -13,6 +13,7 @@ from .sbom import Sbom
 class Build:
     """Apko Build"""
 
+    tarball_: dagger.File
     container_: dagger.Container
     platform_variants: list[dagger.Container]
     sbom_: Sbom
@@ -22,7 +23,7 @@ class Build:
     @function
     def as_tarball(self) -> dagger.File:
         """Returns the build as tarball"""
-        return self.container_.as_tarball(platform_variants=self.platform_variants)
+        return self.tarball_
 
     @function
     def as_directory(self) -> dagger.Directory:

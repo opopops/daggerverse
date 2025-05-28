@@ -190,7 +190,7 @@ class Apko:
             "--sbom-path",
             "${APKO_BUILD_DIR}",
             "--cache-dir",
-            "$APKO_CACHE_DIR",
+            "${APKO_CACHE_DIR}",
         ]
 
         for index, source in enumerate(sources):
@@ -236,10 +236,11 @@ class Apko:
                 )
 
         return Build(
+            tarball_=tarball,
             container_=self.container_,
             platform_variants=platform_variants,
             sbom_=Sbom(
-                directory_=apko.directory("$APKO_BUILD_DIR", expand=True).filter(
+                directory_=apko.directory("${APKO_BUILD_DIR}", expand=True).filter(
                     include=["sbom-*.json"]
                 )
             ),
