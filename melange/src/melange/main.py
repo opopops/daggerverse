@@ -216,7 +216,7 @@ class Melange:
                 "packages",
             )
             .with_file(
-                f"{self.signing_key_}.pub",
+                f"{self.signing_key_.name}.pub",
                 self.signing_key_.public(),
                 permissions=0o644,
             )
