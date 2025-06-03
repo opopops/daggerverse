@@ -29,7 +29,7 @@ class Apko:
         image: Annotated[str | None, Doc("wolfi-base image")] = (
             "cgr.dev/chainguard/wolfi-base:latest"
         ),
-        version: Annotated[str | None, Doc("Apko version")] = "latest",
+        version: Annotated[str | None, Doc("Apko version")] = "0.27.9",
         user: Annotated[str | None, Doc("Image user")] = "nonroot",
         workdir: Annotated[
             dagger.Directory | None, Doc("Work directory"), Name("source")
@@ -150,7 +150,10 @@ class Apko:
         self,
         config: Annotated[dagger.File, Doc("Config file")],
         tag: Annotated[str | None, Doc("Image tag")] = "apko-build",
-        sources: Annotated[
+        workdir: Annotated[
+            dagger.Directory | None, Doc("Work directory"), Name("source")
+        ] = None,
+        includes: Annotated[
             list[dagger.Directory] | None,
             Doc("Additional include paths where to look for input files"),
             Name("include-paths"),
@@ -182,6 +185,11 @@ class Apko:
             )
         )
 
+        if workdir:
+            apko = apko.with_mounted_directory(
+                "$APKO_WORK_DIR", source=workdir, owner=self.user, expand=True
+            )
+
         cmd = [
             "build",
             "/tmp/apko.yaml",
@@ -193,11 +201,11 @@ class Apko:
             "${APKO_CACHE_DIR}",
         ]
 
-        for index, source in enumerate(sources):
+        for index, include in enumerate(includes):
             path: str = f"/tmp/sources/{index}"
             apko = apko.with_mounted_directory(
                 path,
-                source=source,
+                source=include,
                 owner=self.user,
             )
             cmd.extend(["--include-paths", path])
@@ -252,7 +260,10 @@ class Apko:
         self,
         config: Annotated[dagger.File, Doc("Config file")],
         tags: Annotated[list[str], Doc("Image tags"), Name("tag")],
-        sources: Annotated[
+        workdir: Annotated[
+            dagger.Directory | None, Doc("Work directory"), Name("source")
+        ] = None,
+        includes: Annotated[
             list[dagger.Directory] | None,
             Doc("Additional include paths where to look for input files"),
             Name("include-paths"),
@@ -291,6 +302,11 @@ class Apko:
             )
         )
 
+        if workdir:
+            apko = apko.with_mounted_directory(
+                "$APKO_WORK_DIR", source=workdir, owner=self.user, expand=True
+            )
+
         if force:
             # Cache buster
             apko = apko.with_env_variable("CACHEBUSTER", str(datetime.now()))
@@ -300,11 +316,11 @@ class Apko:
         cmd.extend(tags)
         cmd.extend(["--cache-dir", "$APKO_CACHE_DIR"])
 
-        for index, source in enumerate(sources):
+        for index, include in enumerate(includes):
             path: str = f"/tmp/sources/{index}"
             apko = apko.with_mounted_directory(
                 path,
-                source=source,
+                source=include,
                 owner=self.user,
             )
             cmd.extend(["--include-paths", path])
