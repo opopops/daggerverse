@@ -148,24 +148,21 @@ class Cosign:
     @function
     def generate_key_pair(
         self,
-        password: Annotated[dagger.Secret | None, Doc("Key password")] = dag.set_secret(
-            "cosign-password", ""
-        ),
+        password: Annotated[dagger.Secret | None, Doc("Key password")] = None,
     ) -> dagger.Directory:
         """Generate key pair"""
         container = (
             self.container()
-            .with_secret_variable("COSIGN_PASSWORD", password)
+            .with_secret_variable(
+                "COSIGN_PASSWORD", password or dag.set_secret("cosign-password", "")
+            )
             .with_exec(["generate-key-pair"], use_entrypoint=True)
         )
         return container.directory(".")
 
     @function
     async def with_generate_key_pair(
-        self,
-        password: Annotated[dagger.Secret | None, Doc("Key password")] = dag.set_secret(
-            "cosign-password", ""
-        ),
+        self, password: Annotated[dagger.Secret | None, Doc("Key password")] = None
     ) -> Self:
         """Generate and include a new key pair (for chaining)"""
         keys: dagger.Directory = self.generate_key_pair(password=password)
@@ -180,9 +177,7 @@ class Cosign:
     def with_private_key(
         self,
         key: Annotated[dagger.Secret, Doc("Key to use for signing")],
-        password: Annotated[dagger.Secret | None, Doc("Key password")] = dag.set_secret(
-            "cosign-password", ""
-        ),
+        password: Annotated[dagger.Secret | None, Doc("Key password")] = None,
         public_key: Annotated[
             dagger.File | None, Doc("Public key to use for verification")
         ] = None,
@@ -194,7 +189,9 @@ class Cosign:
         self.container_ = (
             self.container()
             .with_secret_variable("COSIGN_PRIVATE_KEY", key)
-            .with_secret_variable("COSIGN_PASSWORD", password)
+            .with_secret_variable(
+                "COSIGN_PASSWORD", password or dag.set_secret("cosign-password", "")
+            )
         )
         return self
 
@@ -352,9 +349,7 @@ class Cosign:
         predicate: Annotated[dagger.File, Doc("path to the predicate file")],
         type_: Annotated[str, Doc("Specify a predicate type"), Name("type")],
         private_key: Annotated[dagger.Secret | None, Doc("Cosign private key")] = None,
-        password: Annotated[
-            dagger.Secret | None, Doc("Cosign password")
-        ] = dag.set_secret("cosign_password", ""),
+        password: Annotated[dagger.Secret | None, Doc("Cosign password")] = None,
         identity_token: Annotated[
             dagger.Secret | None, Doc("Cosign identity token")
         ] = None,
@@ -391,7 +386,9 @@ class Cosign:
             )
 
         if password:
-            container = container.with_secret_variable("COSIGN_PASSWORD", password)
+            container = container.with_secret_variable(
+                "COSIGN_PASSWORD", password or dag.set_secret("cosign_password", "")
+            )
 
         if oidc_provider or self.oidc_provider_:
             cmd.extend(["--oidc-provider", oidc_provider or self.oidc_provider_])
