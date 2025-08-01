@@ -29,7 +29,7 @@ class Cosign:
         image: Annotated[str | None, Doc("wolfi-base image")] = (
             "cgr.dev/chainguard/wolfi-base:latest"
         ),
-        version: Annotated[str | None, Doc("Cosign version")] = "2.5.2",
+        version: Annotated[str | None, Doc("Cosign version")] = "2.5.3",
         user: Annotated[str | None, Doc("Image user")] = "65532",
     ):
         """Constructor"""
