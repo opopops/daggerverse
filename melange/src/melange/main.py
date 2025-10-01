@@ -24,7 +24,7 @@ class Melange:
         image: Annotated[str | None, Doc("wolfi-base image")] = (
             "cgr.dev/chainguard/wolfi-base:latest"
         ),
-        version: Annotated[str | None, Doc("Melange version")] = "0.31.3",
+        version: Annotated[str | None, Doc("Melange version")] = "0.31.5",
         user: Annotated[str | None, Doc("Image user")] = "65532",
     ):
         """Constructor"""
