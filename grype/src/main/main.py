@@ -18,7 +18,7 @@ class Grype:
         image: Annotated[str | None, Doc("wolfi-base image")] = (
             "cgr.dev/chainguard/wolfi-base:latest"
         ),
-        version: Annotated[str | None, Doc("Grype version")] = "0.99.1",
+        version: Annotated[str | None, Doc("Grype version")] = "0.100.0",
         user: Annotated[str | None, Doc("Image user")] = "65532",
     ):
         """Constructor"""
