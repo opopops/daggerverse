@@ -29,7 +29,7 @@ class Apko:
         image: Annotated[str | None, Doc("wolfi-base image")] = (
             "cgr.dev/chainguard/wolfi-base:latest"
         ),
-        version: Annotated[str | None, Doc("Apko version")] = "0.31.2",
+        version: Annotated[str | None, Doc("Apko version")] = "0.30.13",
         user: Annotated[str | None, Doc("Image user")] = "nonroot",
         workdir: Annotated[
             dagger.Directory | None, Doc("Work directory"), Name("source")
