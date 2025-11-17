@@ -1,7 +1,8 @@
 {
   "name": "crane",
-  "engineVersion": "v0.18.14",
+  "engineVersion": "v0.19.6",
   "sdk": {
     "source": "python"
-  }
+  },
+  "disableDefaultFunctionCaching": true
 }
