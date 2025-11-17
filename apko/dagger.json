@@ -1,6 +1,6 @@
 {
   "name": "apko",
-  "engineVersion": "v0.18.17",
+  "engineVersion": "v0.19.6",
   "sdk": {
     "source": "python"
   },
@@ -17,5 +17,6 @@
       "name": "grype",
       "source": "../grype"
     }
-  ]
+  ],
+  "disableDefaultFunctionCaching": true
 }
