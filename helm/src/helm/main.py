@@ -24,7 +24,7 @@ class Helm:
         image: Annotated[str | None, Doc("wolfi-base image")] = (
             "cgr.dev/chainguard/wolfi-base:latest"
         ),
-        version: Annotated[str | None, Doc("Helm version")] = "3.19.2",
+        version: Annotated[str | None, Doc("Helm version")] = "3.19.4",
         user: Annotated[str | None, Doc("Image user")] = "65532",
         chart: Annotated[dagger.File | None, Doc("The chart archive")] = None,
         docker_config: Annotated[dagger.File | None, Doc("Docker config file")] = None,
