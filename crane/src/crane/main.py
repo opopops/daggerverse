@@ -19,7 +19,7 @@ class Crane:
         image: Annotated[str | None, Doc("wolfi-base image")] = (
             "cgr.dev/chainguard/wolfi-base:latest"
         ),
-        version: Annotated[str | None, Doc("Crane version")] = "0.21.3",
+        version: Annotated[str | None, Doc("Crane version")] = "0.22.1",
         user: Annotated[str | None, Doc("Image user")] = "65532",
     ):
         """Constructor"""
